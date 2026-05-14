@@ -8,7 +8,7 @@ import type {
   JobStatus,
   PipelineStep,
   TipoDocumento,
-} from './constants';
+} from './constants.ts';
 
 // =============================================================
 // Profile (extends auth.users)

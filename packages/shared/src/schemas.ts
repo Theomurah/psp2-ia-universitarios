@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { TIPOS_DOCUMENTO, FORMATOS_SUPORTADOS, NOMENCLATURA } from './constants';
+import { TIPOS_DOCUMENTO, FORMATOS_SUPORTADOS, NOMENCLATURA } from './constants.ts';
 
 // =============================================================
 // Classificação (T09)
