@@ -7,9 +7,18 @@
  * Docs: https://openrouter.ai/docs
  */
 
+/**
+ * Content de mensagem multimodal (OpenAI-compatible).
+ * - Texto puro: string
+ * - Multimodal: array de partes texto/imagem
+ */
+export type LLMContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
+
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | LLMContentPart[];
 }
 
 export interface LLMCallOptions {

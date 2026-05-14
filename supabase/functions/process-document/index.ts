@@ -111,10 +111,13 @@ async function runPipeline(jobId: string): Promise<void> {
       .from('documents').download(doc.storage_path);
     if (dlErr || !fileBlob) throw new Error(`Falha ao baixar do Storage: ${dlErr?.message}`);
     const buffer = new Uint8Array(await fileBlob.arrayBuffer());
-    const parseResult = await parseDocument(buffer, doc.format);
+    const mimeType = fileBlob.type || undefined;
+    const parseResult = await parseDocument(buffer, doc.format, mimeType);
     await logEvent('parse', 'success', {
       duration_ms: Date.now() - t0,
-      message: `${parseResult.metadata.chars} chars extraídos`,
+      llm_model: parseResult.metadata.vision_provider,
+      cost_usd: parseResult.metadata.vision_cost_usd,
+      message: `${parseResult.metadata.chars} chars extraídos${parseResult.metadata.vision_provider ? ` via OCR (${parseResult.metadata.vision_provider})` : ''}`,
     });
 
     if (parseResult.texto.length < 50) {
