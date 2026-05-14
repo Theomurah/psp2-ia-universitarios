@@ -19,7 +19,8 @@
     "react-hook-form": "^7.53.0",
     "zod": "^3.23.0",
     "@hookform/resolvers": "^3.9.0",
-    "@psp2/shared": "*"
+    "@psp2/shared": "*",
+    "react-dropzone": "^14.2.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
