@@ -91,6 +91,7 @@ export default function LoginPage() {
   return (
     <div className="login-container">
       <div className="login-card">
+        <img src="/unb-logo.png" alt="Universidade de Brasília" className="login-logo" />
         <h1>PSP2 — IA para Universitários</h1>
         <p className="hint">
           {mode === 'signin' && 'Entre com sua conta para acessar seus documentos.'}

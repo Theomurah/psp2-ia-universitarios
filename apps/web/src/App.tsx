@@ -20,7 +20,10 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <nav className="topbar">
-          <Link to="/" className="brand">PSP2 IA</Link>
+          <Link to="/" className="brand">
+            <img src="/unb-logo.png" alt="UnB" className="brand-logo" />
+            <span>PSP2 IA</span>
+          </Link>
           <div className="topbar-links">
             <Link to="/">Dashboard</Link>
             <Link to="/settings">Configurações</Link>
