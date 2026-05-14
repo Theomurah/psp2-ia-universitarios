@@ -12,7 +12,8 @@
  */
 
 import { callLLMWithRetry, parseJsonFromLLM } from './openrouter.ts';
-import { MODELS, TARGETS } from '../../../packages/shared/src/constants.ts';
+import { TARGETS } from '../../../packages/shared/src/constants.ts';
+import { getModelConfig } from './models.ts';
 import type { ValidationResult, ClassificationResult } from '../../../packages/shared/src/types.ts';
 
 // =============================================================
@@ -203,7 +204,7 @@ export async function validateJudge(
 
   try {
     const res = await callLLMWithRetry({
-      model: MODELS.judge,
+      model: getModelConfig().judge,
       messages: [
         { role: 'system', content: JUDGE_SYSTEM },
         { role: 'user', content: userMsg },

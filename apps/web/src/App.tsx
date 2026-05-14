@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import DashboardPage from './routes/DashboardPage';
 import SettingsPage from './routes/SettingsPage';
+import LoginPage from './routes/LoginPage';
+import RequireAuth from './components/RequireAuth';
+import TopbarUser from './components/TopbarUser';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,10 +25,12 @@ export default function App() {
             <Link to="/">Dashboard</Link>
             <Link to="/settings">Configurações</Link>
           </div>
+          <TopbarUser />
         </nav>
         <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/" element={<RequireAuth><DashboardPage /></RequireAuth>} />
+          <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

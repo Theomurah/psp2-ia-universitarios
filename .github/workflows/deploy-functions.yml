@@ -1,0 +1,49 @@
+name: Deploy Edge Functions
+
+# Deploy automático das Edge Functions sempre que houver push em main
+# afetando arquivos em supabase/functions/.
+#
+# Secrets necessárias no GitHub (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  — token da conta Supabase (gerar em https://supabase.com/dashboard/account/tokens)
+#   SUPABASE_PROJECT_REF   — ID do projeto (parte do meio do URL: https://XXXXX.supabase.co)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'packages/shared/**'
+      - '.github/workflows/deploy-functions.yml'
+  workflow_dispatch:   # permite disparar manualmente em Actions → Run workflow
+
+jobs:
+  deploy:
+    name: Deploy Edge Functions to Supabase
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: Deploy ingest-document
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions deploy ingest-document --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: Deploy process-document
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions deploy process-document --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --no-verify-jwt

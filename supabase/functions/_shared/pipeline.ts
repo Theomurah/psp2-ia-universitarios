@@ -13,7 +13,7 @@ import {
   renderPrompt,
 } from './prompts.ts';
 import { ClassificationSchema } from '../../../packages/shared/src/schemas.ts';
-import { MODELS } from '../../../packages/shared/src/constants.ts';
+import { getModelConfig } from './models.ts';
 import type {
   ClassificationResult,
   SynthesisResult,
@@ -47,7 +47,7 @@ export async function classify(
 
   const t0 = Date.now();
   const res = await callLLMWithRetry({
-    model: MODELS.classify,
+    model: getModelConfig().classify,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },
@@ -106,7 +106,7 @@ export async function synthesize(
 
   const t0 = Date.now();
   const res = await callLLMWithRetry({
-    model: MODELS.synthesize,
+    model: getModelConfig().synthesize,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: input.texto_bruto },
@@ -155,7 +155,8 @@ export async function compress(
   input: CompressInput,
 ): Promise<{ result: CompressionResult; usage: { tokens_input: number; tokens_output: number; cost_usd: number; model: string; duration_ms: number } }> {
   const system = renderPrompt(SYSTEM_PROMPT_COMPRESS, { modo: input.modo });
-  const model = input.modo === 'compacta' ? MODELS.compress_compact : MODELS.compress_cola;
+  const mc = getModelConfig();
+  const model = input.modo === 'compacta' ? mc.compress_compact : mc.compress_cola;
   const formulas_input = countFormulas(input.markdown_sintetizado);
 
   const t0 = Date.now();
