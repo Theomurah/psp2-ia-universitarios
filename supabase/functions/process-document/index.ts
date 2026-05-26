@@ -200,10 +200,22 @@ async function runPipeline(jobId: string): Promise<void> {
 
   const fail = async (reason: string, step: string) => {
     await logEvent(step, 'error', { message: reason });
+    // Incrementa attempt_count para que dashboards e o futuro watchdog
+    // pg_cron consigam diferenciar "falha na 1ª tentativa" de "falha
+    // crônica após N retentativas". O retry automático em si fica pro
+    // batch B-A7 (watchdog pg_cron — ver CLAUDE.md / Roadmap operacional).
+    // Origem: auditoria 2026-05-26 (Agente 1 A5 + Agente 6 A1).
+    const { data: prev } = await service
+      .from('jobs')
+      .select('attempt_count')
+      .eq('id', jobId)
+      .single();
+    const nextAttempt = (prev?.attempt_count ?? 0) + 1;
     await service.from('jobs').update({
       status: 'failed',
       error_reason: reason,
       completed_at: new Date().toISOString(),
+      attempt_count: nextAttempt,
     }).eq('id', jobId);
   };
 
