@@ -116,6 +116,11 @@ export const TARGETS = {
 // =============================================================
 // SLO de tempo (T06)
 // =============================================================
+// TODO(observabilidade): nenhum caller hoje consome esses números.
+// Quando o painel ops / dashboard admin (ver OBS-6 da auditoria
+// 2026-05-26) entrar, comparar p95 real de runPipeline contra esses
+// alvos por bucket de tamanho e disparar alerta quando estourar.
+// Origem: auditoria 2026-05-26 (Agente 2 — Código Morto, A5).
 export const SLO = {
   small_doc_chars: 5_000,
   medium_doc_chars: 20_000,
