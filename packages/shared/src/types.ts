@@ -109,28 +109,8 @@ export interface JobEvent {
   created_at: string;
 }
 
-// =============================================================
-// Generated content (síntese, compressão, cola)
-// =============================================================
-export type GeneratedContentType =
-  | 'synthesized'
-  | 'compressed_compact'
-  | 'compressed_cola';
-
-export interface GeneratedContent {
-  id: string;
-  document_id: string;
-  type: GeneratedContentType;
-  markdown: string;
-  metadata: {
-    topicos?: string[];
-    formulas_count?: number;
-    secoes_count?: number;
-    [k: string]: unknown;
-  };
-  validation_score: number | null;
-  created_at: string;
-}
+// (GeneratedContent / GeneratedContentType movidos para types.internal.ts —
+//  schema-first, sem caller no codebase ainda. Auditoria 2026-05-26 / A4.)
 
 // =============================================================
 // Prompt library
@@ -149,34 +129,8 @@ export interface PromptLibraryItem {
   created_at: string;
 }
 
-// =============================================================
-// User system prompt (output principal)
-// =============================================================
-export interface UserSystemPrompt {
-  id: string;
-  user_id: string;
-  prompt_text: string;
-  semester_snapshot: string;
-  source_documents: string[];
-  version: number;
-  is_active: boolean;
-  created_at: string;
-}
-
-// =============================================================
-// Feedback
-// =============================================================
-export type FeedbackTopic = 'sintese' | 'nomenclatura' | 'drive' | 'prompts' | 'outro';
-
-export interface Feedback {
-  id: string;
-  user_id: string;
-  job_id: string | null;
-  rating: 1 | 2 | 3 | 4 | 5;
-  topic: FeedbackTopic;
-  comments: string | null;
-  created_at: string;
-}
+// (UserSystemPrompt, Feedback, FeedbackTopic movidos para types.internal.ts —
+//  schema-first, consumo planejado em H7/H10. Auditoria 2026-05-26 / A4.)
 
 // =============================================================
 // LLM call I/O
