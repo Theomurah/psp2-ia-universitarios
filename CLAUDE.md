@@ -101,3 +101,36 @@ Para Edge Functions sob desenvolvimento ativo, considere também:
 ```bash
 deno check supabase/functions/<nome>/index.ts
 ```
+
+---
+
+## Roadmap operacional (pg_cron)
+
+> Origem: auditoria 2026-05-26 (Agente 6 — Banco, achado F2).
+
+O projeto ainda não usa `pg_cron`. Casos planejados que vão entrar em
+migrations futuras (não mexer no dashboard do Supabase — sempre via
+migration versionada):
+
+| Job                                              | Frequência    | Sprint alvo |
+|--------------------------------------------------|---------------|-------------|
+| **Watchdog de jobs presos** — jobs em `processing` há > 10min com `attempt_count < max_retries` voltam para `pending` (cobre achado A7 da auditoria) | a cada 5 min  | Sprint 2    |
+| **Refresh proativo de `google_access_token`** — antes do expires_at vencer (hoje refresh é on-demand em `connect-drive`) | a cada 30 min | Sprint 3    |
+| **Limpeza de `job_events` antigos** — eventos > 90 dias (tabela cresce indefinidamente, ver A7 obs) | diário 03:00  | Sprint 4    |
+| **Snapshot de métricas** — agregação diária pra `MetricsCards` em vez de COUNT(*) em tempo real | diário 04:00  | Sprint 4    |
+
+Padrão de migration esperado:
+
+```sql
+create extension if not exists pg_cron with schema extensions;
+
+select cron.schedule(
+  'watchdog-stuck-jobs',
+  '*/5 * * * *',
+  $$ update public.jobs
+       set status = 'pending', current_step = null
+     where status = 'processing'
+       and started_at < now() - interval '10 minutes'
+       and attempt_count < 2; $$
+);
+```
