@@ -1,5 +1,7 @@
 # PSP2 — IA para Universitários
 
+[![CI](https://github.com/Theomurah/psp2-ia-universitarios/actions/workflows/ci.yml/badge.svg)](https://github.com/Theomurah/psp2-ia-universitarios/actions/workflows/ci.yml)
+
 Mini SaaS que ingere documentos acadêmicos (PDF, DOCX, PPTX, MD, imagens), processa via LLM para sintetizar, organiza no Google Drive do aluno, e gera system prompts personalizados + biblioteca de prompts acadêmicos.
 
 **Disciplina:** PSP2 — UnB, semestre 2026.1
