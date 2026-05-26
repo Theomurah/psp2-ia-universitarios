@@ -23,12 +23,16 @@ function getAllowedOrigins(): string[] {
 /**
  * Retorna headers CORS específicos pra esta request:
  * - ecoa o Origin se estiver na whitelist
- * - caso contrário, retorna o primeiro permitido (browser bloqueia, mas tem fallback)
+ * - caso contrário, retorna string vazia (browser bloqueia explicitamente)
+ *
+ * Antes voltávamos `allowed[0]` como fallback, mas isso poluía logs com
+ * origens que pareciam liberadas mas não eram. Vazio = bloqueio claro.
+ * Origem: auditoria 2026-05-26 (Agente 1, achado B4).
  */
 export function corsHeadersFor(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') ?? '';
   const allowed = getAllowedOrigins();
-  const allowedOrigin = allowed.includes(origin) ? origin : (allowed[0] ?? '');
+  const allowedOrigin = allowed.includes(origin) ? origin : '';
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
