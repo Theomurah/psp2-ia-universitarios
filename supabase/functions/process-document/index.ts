@@ -43,6 +43,7 @@ import {
   validateClassification,
   validateQuantitative,
   validateSemantic,
+  validateJudge,
   decideVerdict,
 } from '../_shared/validation.ts';
 import { buildFilenameFinal, buildDriveFolderPath } from '../../../packages/shared/src/schemas.ts';
@@ -327,13 +328,27 @@ async function runPipeline(jobId: string): Promise<void> {
       return await fail(`Síntese rejeitada: ${[...structural.errors, ...quantitative.errors, ...semantic.errors].join('; ')}`, 'synthesize');
     }
 
+    // Camada 4 — LLM-as-judge (T25). Roda quando 2-3 anteriores deram warning
+    // OU em 5% dos jobs como amostragem de qualidade. Não bloqueia em caso de
+    // falha (validateJudge devolve passed:true se LLM indisponível).
+    // Origem: auditoria 2026-05-26 (Agente 1, achado A3).
+    const judgeShouldRun = synthVerdict === 'warning' || Math.random() < 0.05;
+    let judgeScore: number | null = semantic.score;
+    if (judgeShouldRun) {
+      const judge = await validateJudge(parseResult.texto, synth.result.markdown);
+      judgeScore = judge.score > 0 ? judge.score : semantic.score;
+      await logEvent('judge', judge.passed ? 'success' : 'warning', {
+        message: judge.comment ?? judge.warnings.join('; ') ?? judge.errors.join('; '),
+      });
+    }
+
     // Salva o markdown sintetizado
     await service.from('generated_content').insert({
       document_id: doc.id,
       type: 'synthesized',
       markdown: synth.result.markdown,
       metadata: synth.result.metadata,
-      validation_score: semantic.score,
+      validation_score: judgeScore,
     });
 
     // 4) COMPRESS (modo compacta)
