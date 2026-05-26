@@ -17,6 +17,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { z } from 'https://esm.sh/zod@3.23.8';
 import { handleCorsPrefligh } from '../_shared/cors.ts';
 import { createAuthClient, createServiceClient } from '../_shared/supabase-client.ts';
 import {
@@ -53,6 +54,13 @@ declare const EdgeRuntime: {
 
 const MAX_BODY_BYTES = 4 * 1024;
 
+// Schema do body — UUID estrito evita que UUIDs malformados quebrem em .eq('id')
+// com erro Postgres 22P02 vazando pelo console.error como 'internal_error'.
+// Origem: auditoria 2026-05-26 (Agente 1, achado B1).
+const ProcessDocumentBodySchema = z.object({
+  job_id: z.string().uuid(),
+});
+
 serve(async (req) => {
   const cors = handleCorsPrefligh(req);
   if (cors) return cors;
@@ -63,12 +71,13 @@ serve(async (req) => {
     const sizeErr = requireMaxPayload(req, MAX_BODY_BYTES);
     if (sizeErr) return sizeErr;
 
-    const [body, parseErr] = await parseJsonBody<{ job_id?: string }>(req);
+    const [body, parseErr] = await parseJsonBody<unknown>(req);
     if (parseErr) return parseErr;
-    const job_id = body?.job_id;
-    if (!job_id || typeof job_id !== 'string') {
-      return errorResponse(req, 'missing_required', 400, 'job_id é obrigatório.');
+    const parsed = ProcessDocumentBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(req, 'invalid_body', 400, 'job_id deve ser um UUID válido.');
     }
+    const { job_id } = parsed.data;
 
     // Autorização: precisa ser service_role (chamada interna do ingest-document)
     // OU JWT de usuário dono do job. Sem isso, qualquer um com job_id podia
