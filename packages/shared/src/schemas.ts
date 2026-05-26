@@ -140,16 +140,26 @@ export function sanitizeFilename(raw: string): string {
     .slice(0, NOMENCLATURA.max_titulo_chars);
 }
 
+// Whitelist canônica de extensões aceitas no caminho de upload do PSP2.
+// Origem: auditoria 2026-05-26 (Agente 3 — Segurança, achado S-07).
+// Restringir aqui evita que algum endpoint futuro deixe o cliente passar
+// "../etc/passwd" ou similares pelo campo `extension` do filename final.
+export const ALLOWED_FILE_EXTENSIONS = ['md', 'pdf', 'docx', 'pptx', 'txt'] as const;
+export type AllowedFileExtension = (typeof ALLOWED_FILE_EXTENSIONS)[number];
+
 export interface NomeFinalParams {
   materia_code: string;
   tipo: string;
   identificador: string | null;
   data: string | null;       // AAAA-MM-DD
   titulo: string;
-  extension: string;          // 'md', 'pdf', etc.
+  extension: AllowedFileExtension;
 }
 
 export function buildFilenameFinal(p: NomeFinalParams): string {
+  if (!ALLOWED_FILE_EXTENSIONS.includes(p.extension)) {
+    throw new Error(`Extensão não permitida: ${p.extension}`);
+  }
   const id = p.identificador ?? p.data ?? '';
   const idPart = id ? `${id} ` : '';
   const titulo = sanitizeFilename(p.titulo);
