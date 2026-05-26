@@ -148,13 +148,41 @@ async function authorizeProcessDocument(
 async function runPipeline(jobId: string): Promise<void> {
   const service = createServiceClient();
 
+  // Claim atômico: tenta transicionar pending → processing.
+  // Se afetar 0 linhas, é porque outro worker já está rodando (ou o job
+  // já terminou) — retornamos early, evitando dupla cobrança de LLM.
+  // Origem: auditoria 2026-05-26 (Agente 6 — Banco, achado D1; cobre
+  // também Agente 1 — A1 sobre `started_at` ser sobrescrito).
+  const startedAt = new Date().toISOString();
+  const { data: claimed, error: claimErr } = await service
+    .from('jobs')
+    .update({
+      status: 'processing',
+      started_at: startedAt,
+      current_step: 'parse',
+      progress_percent: 0,
+    })
+    .eq('id', jobId)
+    .eq('status', 'pending')
+    .select('id');
+
+  if (claimErr) {
+    console.error('process-document claim:', claimErr);
+    return;
+  }
+  if (!claimed || claimed.length === 0) {
+    // Outro worker já claim'ou ou o job não está em pending — sai sem custo.
+    console.warn(`process-document: job ${jobId} já claim'ado por outro worker — pulando.`);
+    return;
+  }
+
   // Helpers de telemetria/erro
+  // Importante: setStep NUNCA mais sobrescreve started_at (gravado uma vez no claim).
   const setStep = async (step: PipelineStep, progress: number) => {
     await service.from('jobs').update({
       status: 'processing',
       current_step: step,
       progress_percent: progress,
-      started_at: new Date().toISOString(),
     }).eq('id', jobId);
   };
 
