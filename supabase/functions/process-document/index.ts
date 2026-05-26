@@ -404,6 +404,18 @@ async function tryUploadToDrive(args: {
 }): Promise<DriveAttemptResult> {
   const { profile, filename, markdown, pathSegments, service } = args;
 
+  // Defesa em profundidade: aborta upload se markdown for absurdamente grande.
+  // Síntese normal raramente passa de 50-100 KB; > 1 MB é alucinação do LLM
+  // ou expansão indevida — não vale gastar storage do Drive nem quota Google.
+  // Origem: auditoria 2026-05-26 (Agente 3 — Segurança, achado S-08).
+  const MAX_MARKDOWN_BYTES = 1_000_000;
+  if (markdown.length > MAX_MARKDOWN_BYTES) {
+    return {
+      skipped: false,
+      error: `Markdown gerado (${markdown.length} bytes) excedeu limite de ${MAX_MARKDOWN_BYTES} bytes — upload pro Drive abortado`,
+    };
+  }
+
   if (!profile.google_refresh_token) {
     return { skipped: true, reason: 'Drive não conectado (sem refresh_token salvo)' };
   }
