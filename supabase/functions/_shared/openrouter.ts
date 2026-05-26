@@ -128,12 +128,29 @@ export function parseJsonFromLLM<T = unknown>(content: string): T {
 }
 
 /**
+ * Callback opcional disparado a cada retry transitório.
+ * Permite que o caller registre o evento em job_events (event_type='retry')
+ * ou em qualquer outro sink — sem acoplar este módulo ao Supabase.
+ * Origem: auditoria 2026-05-26 (Agente 4 — Observabilidade, A11).
+ */
+export interface RetryInfo {
+  attempt: number;
+  maxAttempts: number;
+  status: number;
+  delayMs: number;
+  message: string;
+  model: string;
+}
+export type OnRetryCallback = (info: RetryInfo) => void | Promise<void>;
+
+/**
  * Retry com backoff exponencial.
  * Tenta callLLM até `maxAttempts` vezes em caso de erros transientes (rate limit, 5xx).
  */
 export async function callLLMWithRetry(
   opts: LLMCallOptions,
   maxAttempts = 3,
+  onRetry?: OnRetryCallback,
 ): Promise<LLMCallResult> {
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -146,6 +163,20 @@ export async function callLLMWithRetry(
         (err.status === 429 || err.status >= 500);
       if (!isTransient || attempt === maxAttempts) throw err;
       const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      if (onRetry) {
+        try {
+          await onRetry({
+            attempt,
+            maxAttempts,
+            status: (err as OpenRouterError).status,
+            delayMs,
+            message: (err as Error).message,
+            model: opts.model,
+          });
+        } catch {
+          // onRetry não deve quebrar o pipeline — só observabilidade
+        }
+      }
       await new Promise((r) => setTimeout(r, delayMs));
     }
   }
