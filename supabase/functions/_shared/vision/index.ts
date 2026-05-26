@@ -20,11 +20,9 @@
 
 import { VisionProvider } from './types.ts';
 import { OpenRouterVisionProvider } from './openrouter-vision.ts';
-import { ClaudeVisionProvider } from './claude.ts';
-import { GeminiVisionProvider } from './gemini.ts';
 
 export * from './types.ts';
-export { OpenRouterVisionProvider, ClaudeVisionProvider, GeminiVisionProvider };
+export { OpenRouterVisionProvider };
 
 // Aliases legados — convertidos pra model strings
 const PROVIDER_ALIASES: Record<string, string> = {
@@ -68,22 +66,3 @@ function resolveModel(input: string): string {
   return 'anthropic/claude-sonnet-4.6';
 }
 
-/**
- * Helper de fallback: tenta o provider primário; se falhar, tenta o secundário.
- * Útil pra rotação dinâmica (ex: Gemini barato primeiro, Claude como fallback).
- */
-export async function extractWithFallback(
-  imageBuffer: Uint8Array,
-  mimeType: string,
-  primary: string = 'anthropic/claude-sonnet-4.6',
-  secondary: string = 'google/gemini-2.0-flash-exp',
-) {
-  const p = new OpenRouterVisionProvider(resolveModel(primary));
-  try {
-    return { result: await p.extractText(imageBuffer, mimeType), providerUsed: p.name };
-  } catch (errPrimary) {
-    console.warn(`Vision primary (${primary}) falhou:`, errPrimary);
-    const s = new OpenRouterVisionProvider(resolveModel(secondary));
-    return { result: await s.extractText(imageBuffer, mimeType), providerUsed: s.name };
-  }
-}
