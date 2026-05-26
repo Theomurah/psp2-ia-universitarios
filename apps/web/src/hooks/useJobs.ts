@@ -40,46 +40,62 @@ export function useJobsRealtime() {
   const hadConnectionRef = useRef(false);
 
   useEffect(() => {
-    const channel = supabase
-      .channel('jobs-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'jobs' },
-        (payload: RealtimePostgresChangesPayload<JobRecord>) => {
-          qc.invalidateQueries({ queryKey: ['jobs'] });
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
 
-          // Toast em transições significativas
-          if (payload.eventType === 'UPDATE') {
-            const oldRow = payload.old as Partial<JobRecord>;
-            const newRow = payload.new as JobRecord;
-            const prev = lastStatusRef.current.get(newRow.id) ?? oldRow.status;
-            const next = newRow.status;
-            if (prev !== next) {
-              cacheStatus(lastStatusRef.current, newRow.id, next);
-              notifyStatusChange(toast, newRow, next);
+    // Defesa em profundidade: filtra eventos do Realtime por user_id no servidor,
+    // não dependendo só de RLS estar habilitada na config do projeto Supabase.
+    // Origem: auditoria 2026-05-26 (Agente 1, achado C2).
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+
+      channel = supabase
+        .channel(`jobs-changes:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'jobs',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload: RealtimePostgresChangesPayload<JobRecord>) => {
+            qc.invalidateQueries({ queryKey: ['jobs'] });
+
+            // Toast em transições significativas
+            if (payload.eventType === 'UPDATE') {
+              const oldRow = payload.old as Partial<JobRecord>;
+              const newRow = payload.new as JobRecord;
+              const prev = lastStatusRef.current.get(newRow.id) ?? oldRow.status;
+              const next = newRow.status;
+              if (prev !== next) {
+                cacheStatus(lastStatusRef.current, newRow.id, next);
+                notifyStatusChange(toast, newRow, next);
+              }
+            } else if (payload.eventType === 'INSERT') {
+              const newRow = payload.new as JobRecord;
+              cacheStatus(lastStatusRef.current, newRow.id, newRow.status);
             }
-          } else if (payload.eventType === 'INSERT') {
-            const newRow = payload.new as JobRecord;
-            cacheStatus(lastStatusRef.current, newRow.id, newRow.status);
+          },
+        )
+        .subscribe((status) => {
+          const isConnected = status === 'SUBSCRIBED';
+          setConnected(isConnected);
+          if (isConnected) {
+            if (hadConnectionRef.current) {
+              toast.success('Conexão restabelecida', 'Atualizações em tempo real reativadas.');
+            }
+            hadConnectionRef.current = true;
+          } else if (hadConnectionRef.current && status === 'CHANNEL_ERROR') {
+            toast.warning('Sem atualização em tempo real', 'Tentando reconectar…');
           }
-        },
-      )
-      .subscribe((status) => {
-        const isConnected = status === 'SUBSCRIBED';
-        setConnected(isConnected);
-        if (isConnected) {
-          if (hadConnectionRef.current) {
-            // Reconectou
-            toast.success('Conexão restabelecida', 'Atualizações em tempo real reativadas.');
-          }
-          hadConnectionRef.current = true;
-        } else if (hadConnectionRef.current && status === 'CHANNEL_ERROR') {
-          toast.warning('Sem atualização em tempo real', 'Tentando reconectar…');
-        }
-      });
+        });
+    })();
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
     };
   }, [qc, toast]);
 
