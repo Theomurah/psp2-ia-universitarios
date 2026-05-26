@@ -40,6 +40,7 @@ export const MIME_TO_FORMAT: Record<string, FormatoDocumento> = {
   'text/plain': 'md',
   'image/png': 'image',
   'image/jpeg': 'image',
+  'image/jpg': 'image',
   'image/heic': 'image',
   'image/webp': 'image',
 };
