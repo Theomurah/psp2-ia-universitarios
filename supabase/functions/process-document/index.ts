@@ -9,13 +9,34 @@
  *   T12 — endpoint que dispara processamento
  *   T14 — fila assíncrona via waitUntil (sem pg_cron)
  *   T16 — tratamento de erros com retry e status: failed
+ *
+ * Hardening:
+ * - Autorização obrigatória: Bearer = SERVICE_ROLE_KEY (chamada interna)
+ *   OU JWT do user cujo id == job.user_id
+ * - Sem essa validação, qualquer um com UUID podia disparar processamento.
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { corsHeaders, handleCorsPrefligh } from '../_shared/cors.ts';
-import { createServiceClient } from '../_shared/supabase-client.ts';
+import { handleCorsPrefligh } from '../_shared/cors.ts';
+import { createAuthClient, createServiceClient } from '../_shared/supabase-client.ts';
+import {
+  jsonResponse,
+  errorResponse,
+  requireContentType,
+  requireMaxPayload,
+  parseJsonBody,
+} from '../_shared/http.ts';
 import { parseDocument } from '../_shared/parsers.ts';
-import { classify, synthesize, compress } from '../_shared/pipeline.ts';
+import { classify, synthesize, synthesizeChunked, compress } from '../_shared/pipeline.ts';
+import { CHUNK_THRESHOLD } from '../_shared/chunking.ts';
+import {
+  ensureFolderPath,
+  uploadMarkdown,
+  ensureFreshToken,
+  DriveAuthExpiredError,
+  DriveError,
+  type DriveTokenPair,
+} from '../_shared/drive/index.ts';
 import {
   validateStructural,
   validateClassification,
@@ -30,32 +51,87 @@ declare const EdgeRuntime: {
   waitUntil(promise: Promise<unknown>): void;
 };
 
+const MAX_BODY_BYTES = 4 * 1024;
+
 serve(async (req) => {
   const cors = handleCorsPrefligh(req);
   if (cors) return cors;
 
   try {
-    const { job_id } = await req.json();
-    if (!job_id) {
-      return new Response(JSON.stringify({ error: 'missing_job_id' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    const ctErr = requireContentType(req, 'application/json');
+    if (ctErr) return ctErr;
+    const sizeErr = requireMaxPayload(req, MAX_BODY_BYTES);
+    if (sizeErr) return sizeErr;
+
+    const [body, parseErr] = await parseJsonBody<{ job_id?: string }>(req);
+    if (parseErr) return parseErr;
+    const job_id = body?.job_id;
+    if (!job_id || typeof job_id !== 'string') {
+      return errorResponse(req, 'missing_required', 400, 'job_id é obrigatório.');
+    }
+
+    // Autorização: precisa ser service_role (chamada interna do ingest-document)
+    // OU JWT de usuário dono do job. Sem isso, qualquer um com job_id podia
+    // disparar processamento.
+    const auth = await authorizeProcessDocument(req, job_id);
+    if (!auth.ok) {
+      return errorResponse(req, auth.code, auth.status);
     }
 
     // Responde 202 já e segue processando em background
     EdgeRuntime.waitUntil(runPipeline(job_id));
 
-    return new Response(JSON.stringify({ status: 'processing' }), {
-      status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse(req, { status: 'processing' }, 202);
   } catch (err) {
     console.error('process-document erro inicial:', err);
-    return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    );
+    return errorResponse(req, 'internal_error', 500);
   }
 });
+
+// =============================================================
+// Autorização: service_role bearer OU JWT do dono do job
+// =============================================================
+async function authorizeProcessDocument(
+  req: Request,
+  jobId: string,
+): Promise<{ ok: true } | { ok: false; code: string; status: number }> {
+  const authHeader = req.headers.get('Authorization') ?? '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return { ok: false, code: 'unauthorized', status: 401 };
+  }
+  const token = authHeader.slice(7).trim();
+
+  // Caso 1: chamada interna com service_role (ingest-document → process-document)
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (serviceKey && token === serviceKey) {
+    return { ok: true };
+  }
+
+  // Caso 2: JWT do usuário — precisa ser dono do job
+  const client = createAuthClient(req);
+  const { data: { user }, error } = await client.auth.getUser();
+  if (error || !user) {
+    return { ok: false, code: 'unauthorized', status: 401 };
+  }
+
+  const service = createServiceClient();
+  const { data: job, error: jobErr } = await service
+    .from('jobs')
+    .select('user_id')
+    .eq('id', jobId)
+    .maybeSingle();
+  if (jobErr) {
+    console.error('authorize: erro lendo job:', jobErr);
+    return { ok: false, code: 'internal_error', status: 500 };
+  }
+  if (!job) {
+    return { ok: false, code: 'not_found', status: 404 };
+  }
+  if (job.user_id !== user.id) {
+    return { ok: false, code: 'forbidden', status: 403 };
+  }
+  return { ok: true };
+}
 
 // =============================================================
 // Pipeline principal — roda em background via waitUntil
@@ -156,10 +232,10 @@ async function runPipeline(jobId: string): Promise<void> {
       classificacao_confianca: cls.result.confianca,
     }).eq('id', doc.id);
 
-    // 3) SYNTHESIZE
+    // 3) SYNTHESIZE — automaticamente em chunks pra docs grandes (T24)
     await setStep('synthesize', 45);
     const materiaNome = profile.materias?.find((m: { code: string }) => m.code === cls.result.materia_code)?.nome ?? cls.result.materia_code;
-    const synth = await synthesize({
+    const synthInput = {
       texto_bruto: parseResult.texto,
       contexto: {
         materia_code: cls.result.materia_code,
@@ -171,13 +247,34 @@ async function runPipeline(jobId: string): Promise<void> {
         semestre: profile.semestre_atual ?? '2026.1',
         fonte: null,
       },
+    };
+
+    const synth = await synthesizeChunked(synthInput, {
+      onChunkEvent: async (e) => {
+        const eventType = e.kind.endsWith('_success') ? 'success' : 'start';
+        const stepName = e.kind.startsWith('chunk')
+          ? `synthesize.chunk_${(e.chunk_index ?? 0) + 1}_of_${e.chunk_total ?? '?'}`
+          : 'synthesize.reduce';
+        await logEvent(stepName, eventType, {
+          duration_ms: e.duration_ms,
+          llm_model: e.model,
+          tokens_input: e.tokens_input,
+          tokens_output: e.tokens_output,
+          cost_usd: e.cost_usd,
+          message: e.source_section ? `seção: ${e.source_section}` : undefined,
+        });
+      },
     });
+
     await logEvent('synthesize', 'success', {
       duration_ms: synth.usage.duration_ms,
       llm_model: synth.usage.model,
       tokens_input: synth.usage.tokens_input,
       tokens_output: synth.usage.tokens_output,
       cost_usd: synth.usage.cost_usd,
+      message: synth.chunked
+        ? `chunked: ${synth.chunk_count} chunks (input ${parseResult.texto.length} chars > ${CHUNK_THRESHOLD})`
+        : `single pass (${parseResult.texto.length} chars)`,
     });
 
     // Validações da síntese
@@ -242,11 +339,29 @@ async function runPipeline(jobId: string): Promise<void> {
       drive_folder_path: driveFolderPath,
     }).eq('id', doc.id);
 
-    // 6) UPLOAD_DRIVE (skeleton — H6/Sprint 2 implementa de fato)
+    // 6) UPLOAD_DRIVE (T28 + T29)
     await setStep('upload_drive', 95);
-    await logEvent('upload_drive', 'warning', {
-      message: 'Drive export ainda não implementado (H6/Sprint 2)',
+    const driveResult = await tryUploadToDrive({
+      profile,
+      filename: filenameFinal,
+      markdown: synth.result.markdown,
+      pathSegments: [profile.semestre_atual ?? '2026.1', materiaNome],
+      service,
     });
+
+    if (driveResult.skipped) {
+      await logEvent('upload_drive', 'warning', { message: driveResult.reason });
+    } else if (driveResult.error) {
+      await logEvent('upload_drive', 'error', { message: driveResult.error });
+    } else {
+      await logEvent('upload_drive', 'success', {
+        duration_ms: driveResult.duration_ms,
+        message: `arquivo no Drive: ${driveResult.file_id}`,
+      });
+      await service.from('documents').update({
+        drive_file_id: driveResult.file_id,
+      }).eq('id', doc.id);
+    }
 
     // 7) Conclui
     const totalCost = cls.usage.cost_usd + synth.usage.cost_usd + comp.usage.cost_usd;
@@ -267,5 +382,81 @@ async function runPipeline(jobId: string): Promise<void> {
   } catch (err) {
     console.error('runPipeline erro:', err);
     await fail((err as Error).message, 'unknown');
+  }
+}
+
+// =============================================================
+// Upload pro Google Drive (T28 + T29) — não interrompe pipeline em erro
+// =============================================================
+type DriveAttemptResult =
+  | { skipped: true; reason: string; error?: undefined; file_id?: undefined; duration_ms?: undefined }
+  | { skipped: false; error: string; file_id?: undefined; duration_ms?: undefined; reason?: undefined }
+  | { skipped: false; error?: undefined; file_id: string; duration_ms: number; reason?: undefined };
+
+async function tryUploadToDrive(args: {
+  // deno-lint-ignore no-explicit-any
+  profile: any;
+  filename: string;
+  markdown: string;
+  pathSegments: string[];
+  // deno-lint-ignore no-explicit-any
+  service: any;
+}): Promise<DriveAttemptResult> {
+  const { profile, filename, markdown, pathSegments, service } = args;
+
+  if (!profile.google_refresh_token) {
+    return { skipped: true, reason: 'Drive não conectado (sem refresh_token salvo)' };
+  }
+
+  // Monta token pair a partir do profile; faz refresh se já passou da validade
+  let token: DriveTokenPair = {
+    access_token: profile.google_access_token ?? '',
+    refresh_token: profile.google_refresh_token,
+    expires_at: profile.google_token_expires_at
+      ? new Date(profile.google_token_expires_at).getTime()
+      : 0,
+    token_type: 'Bearer',
+    scope: 'https://www.googleapis.com/auth/drive.file',
+  };
+
+  try {
+    token = await ensureFreshToken(token);
+  } catch (err) {
+    if (err instanceof DriveAuthExpiredError) {
+      return { skipped: true, reason: 'Token Google expirado — reconectar Drive na tela de Configurações' };
+    }
+    return { skipped: false, error: `refresh falhou: ${(err as Error).message}` };
+  }
+
+  // Persiste eventuais novos tokens (Google às vezes rotaciona)
+  if (token.access_token !== profile.google_access_token) {
+    await service.from('profiles').update({
+      google_access_token: token.access_token,
+      google_token_expires_at: new Date(token.expires_at).toISOString(),
+    }).eq('id', profile.id).catch(() => {/* silencia — migration 0004 pode não estar aplicada */});
+  }
+
+  const t0 = Date.now();
+  try {
+    const folderId = await ensureFolderPath(
+      profile.drive_root_folder_id,
+      pathSegments,
+      { accessToken: token.access_token },
+    );
+    const file = await uploadMarkdown({
+      accessToken: token.access_token,
+      parentId: folderId,
+      filename,
+      markdown,
+    });
+    return { skipped: false, file_id: file.id, duration_ms: Date.now() - t0 };
+  } catch (err) {
+    if (err instanceof DriveAuthExpiredError) {
+      return { skipped: true, reason: 'Token Google rejeitado pelo Drive — reconectar' };
+    }
+    if (err instanceof DriveError) {
+      return { skipped: false, error: `Drive ${err.status}: ${err.message}` };
+    }
+    return { skipped: false, error: (err as Error).message };
   }
 }

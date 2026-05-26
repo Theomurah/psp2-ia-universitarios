@@ -14,6 +14,7 @@ import {
 } from './prompts.ts';
 import { ClassificationSchema } from '../../../packages/shared/src/schemas.ts';
 import { getModelConfig } from './models.ts';
+import { chunkDocument, shouldChunk, MAX_DEPTH, CHUNK_THRESHOLD } from './chunking.ts';
 import type {
   ClassificationResult,
   SynthesisResult,
@@ -215,4 +216,163 @@ function extractTopics(md: string): string[] {
   const m = md.match(/^Tópicos:\s*(.+)$/m);
   if (!m) return [];
   return m[1].split(/[,;]/).map((t) => t.trim()).filter(Boolean).slice(0, 15);
+}
+
+// =============================================================
+// Síntese chunked (T24) — map/reduce pra documentos grandes
+// =============================================================
+
+/**
+ * Síntese de documentos arbitrariamente grandes via chunking.
+ *
+ * Fluxo:
+ *   1. Se chars ≤ threshold → fluxo normal (synthesize).
+ *   2. Senão, parte em chunks, sintetiza cada um (MAP).
+ *   3. Concatena as sínteses parciais e roda síntese final (REDUCE).
+ *   4. Se o resultado da redução ainda for grande, recorre (até MAX_DEPTH).
+ *
+ * Retorna o markdown final + usage agregado (soma de tokens/custo de todas as chamadas).
+ *
+ * @param onChunkEvent callback opcional pra logar progresso de cada chunk (job_events).
+ */
+export async function synthesizeChunked(
+  input: SynthesizeInput,
+  opts: {
+    threshold?: number;
+    depth?: number;
+    onChunkEvent?: (e: {
+      kind: 'chunk_start' | 'chunk_success' | 'reduce_start' | 'reduce_success';
+      chunk_index?: number;
+      chunk_total?: number;
+      source_section?: string;
+      duration_ms?: number;
+      tokens_input?: number;
+      tokens_output?: number;
+      cost_usd?: number;
+      model?: string;
+    }) => Promise<void>;
+  } = {},
+): Promise<{
+  result: SynthesisResult;
+  usage: {
+    tokens_input: number;
+    tokens_output: number;
+    cost_usd: number;
+    model: string;
+    duration_ms: number;
+  };
+  chunked: boolean;
+  chunk_count: number;
+}> {
+  const threshold = opts.threshold ?? CHUNK_THRESHOLD;
+  const depth = opts.depth ?? 0;
+
+  // Caso simples: doc cabe → fluxo normal
+  if (!shouldChunk(input.texto_bruto, threshold)) {
+    const r = await synthesize(input);
+    return { result: r.result, usage: r.usage, chunked: false, chunk_count: 1 };
+  }
+
+  // Guarda contra recursão infinita
+  if (depth >= MAX_DEPTH) {
+    // Trunca pra caber e roda síntese final
+    const truncated = input.texto_bruto.slice(0, threshold);
+    const r = await synthesize({ ...input, texto_bruto: truncated });
+    return { result: r.result, usage: r.usage, chunked: true, chunk_count: 1 };
+  }
+
+  // 1) Divide em chunks
+  const chunks = chunkDocument(input.texto_bruto);
+
+  // 2) MAP — sintetiza cada chunk em paralelo limitado (concorrência 2)
+  const partials: string[] = [];
+  let totalIn = 0,
+    totalOut = 0,
+    totalCost = 0,
+    totalMs = 0;
+  let lastModel = '';
+
+  for (const chunk of chunks) {
+    await opts.onChunkEvent?.({
+      kind: 'chunk_start',
+      chunk_index: chunk.index,
+      chunk_total: chunks.length,
+      source_section: chunk.source_section,
+    });
+
+    const partial = await synthesize({
+      texto_bruto: chunk.content,
+      contexto: {
+        ...input.contexto,
+        titulo: `${input.contexto.titulo} (parte ${chunk.index + 1}/${chunks.length})`,
+      },
+    });
+
+    partials.push(partial.result.markdown);
+    totalIn += partial.usage.tokens_input;
+    totalOut += partial.usage.tokens_output;
+    totalCost += partial.usage.cost_usd;
+    totalMs += partial.usage.duration_ms;
+    lastModel = partial.usage.model;
+
+    await opts.onChunkEvent?.({
+      kind: 'chunk_success',
+      chunk_index: chunk.index,
+      chunk_total: chunks.length,
+      source_section: chunk.source_section,
+      duration_ms: partial.usage.duration_ms,
+      tokens_input: partial.usage.tokens_input,
+      tokens_output: partial.usage.tokens_output,
+      cost_usd: partial.usage.cost_usd,
+      model: partial.usage.model,
+    });
+  }
+
+  // 3) REDUCE — combina parciais
+  const combined = partials.join('\n\n---\n\n');
+
+  // Recursão se o combined ainda for grande
+  if (shouldChunk(combined, threshold)) {
+    await opts.onChunkEvent?.({ kind: 'reduce_start' });
+    const sub = await synthesizeChunked(
+      { ...input, texto_bruto: combined },
+      { threshold, depth: depth + 1, onChunkEvent: opts.onChunkEvent },
+    );
+    return {
+      result: sub.result,
+      usage: {
+        tokens_input: totalIn + sub.usage.tokens_input,
+        tokens_output: totalOut + sub.usage.tokens_output,
+        cost_usd: totalCost + sub.usage.cost_usd,
+        model: sub.usage.model || lastModel,
+        duration_ms: totalMs + sub.usage.duration_ms,
+      },
+      chunked: true,
+      chunk_count: chunks.length + sub.chunk_count,
+    };
+  }
+
+  await opts.onChunkEvent?.({ kind: 'reduce_start' });
+  const final = await synthesize({ ...input, texto_bruto: combined });
+  await opts.onChunkEvent?.({
+    kind: 'reduce_success',
+    duration_ms: final.usage.duration_ms,
+    tokens_input: final.usage.tokens_input,
+    tokens_output: final.usage.tokens_output,
+    cost_usd: final.usage.cost_usd,
+    model: final.usage.model,
+  });
+
+  return {
+    result: final.result,
+    usage: {
+      tokens_input: totalIn + final.usage.tokens_input,
+      tokens_output: totalOut + final.usage.tokens_output,
+      cost_usd: totalCost + final.usage.cost_usd,
+      model: final.usage.model,
+      duration_ms: totalMs + final.usage.duration_ms,
+    },
+    chunked: true,
+    chunk_count: chunks.length,
+  };
 }

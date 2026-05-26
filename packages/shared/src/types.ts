@@ -13,16 +13,24 @@ import type {
 // =============================================================
 // Profile (extends auth.users)
 // =============================================================
+export interface HorarioAula {
+  dia: 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab';
+  inicio: string;      // "HH:MM"
+  fim: string;         // "HH:MM"
+}
+
 export interface MateriaPerfil {
   code: string;        // "FISICA3"
   nome: string;        // "Física 3"
   profs?: string[];    // ["Fábio Lima"]
+  horarios?: HorarioAula[];
 }
 
 export interface Profile {
   id: string;
   email: string;
   full_name: string | null;
+  curso: string | null;                 // "Engenharia de Produção"
   semestre_atual: string | null;        // "2026.1"
   materias: MateriaPerfil[];
   drive_root_folder_id: string | null;
