@@ -198,6 +198,20 @@ async function runPipeline(jobId: string): Promise<void> {
     await service.from('job_events').insert({ job_id: jobId, step, event_type, ...extra });
   };
 
+  // Callback de retry pra propagar pra callLLMWithRetry — registra cada
+  // backoff transitório em job_events (antes ficavam invisíveis, com a
+  // duração da chamada inflada e sem rastro).
+  // Origem: auditoria 2026-05-26 (Agente 4 — Observabilidade, A11).
+  const makeRetryHook = (step: string) => async (info: {
+    attempt: number; maxAttempts: number; status: number; delayMs: number; message: string; model: string;
+  }) => {
+    await logEvent(step, 'retry', {
+      message: `retry ${info.attempt}/${info.maxAttempts} (HTTP ${info.status}, espera ${info.delayMs}ms): ${info.message}`,
+      llm_model: info.model,
+      duration_ms: info.delayMs,
+    });
+  };
+
   const fail = async (reason: string, step: string) => {
     await logEvent(step, 'error', { message: reason });
     // Incrementa attempt_count para que dashboards e o futuro watchdog
@@ -256,7 +270,7 @@ async function runPipeline(jobId: string): Promise<void> {
       texto_bruto: parseResult.texto,
       semestre: profile.semestre_atual ?? '2026.1',
       materias: profile.materias ?? [],
-    });
+    }, makeRetryHook('classify'));
     await logEvent('classify', 'success', {
       duration_ms: cls.usage.duration_ms,
       llm_model: cls.usage.model,
@@ -368,7 +382,7 @@ async function runPipeline(jobId: string): Promise<void> {
     const comp = await compress({
       markdown_sintetizado: synth.result.markdown,
       modo: 'compacta',
-    });
+    }, makeRetryHook('compress'));
     await logEvent('compress', 'success', {
       duration_ms: comp.usage.duration_ms,
       llm_model: comp.usage.model,

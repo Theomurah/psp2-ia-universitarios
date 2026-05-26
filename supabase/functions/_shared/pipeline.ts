@@ -5,7 +5,7 @@
  * valida o resultado com Zod e retorna o output tipado + métricas de uso.
  */
 
-import { callLLMWithRetry, parseJsonFromLLM } from './openrouter.ts';
+import { callLLMWithRetry, parseJsonFromLLM, type OnRetryCallback } from './openrouter.ts';
 import {
   SYSTEM_PROMPT_CLASSIFY,
   SYSTEM_PROMPT_SYNTHESIZE,
@@ -54,6 +54,7 @@ export interface ClassifyInput {
 
 export async function classify(
   input: ClassifyInput,
+  onRetry?: OnRetryCallback,
 ): Promise<{ result: ClassificationResult; usage: { tokens_input: number; tokens_output: number; cost_usd: number; model: string; duration_ms: number } }> {
   const lista_materias = input.materias
     .map((m) => `${m.code} (${m.nome})${m.profs?.length ? ` — profs: ${m.profs.join(', ')}` : ''}`)
@@ -78,7 +79,7 @@ export async function classify(
     temperature: 0,
     max_tokens: 512,
     response_format: { type: 'json_object' },
-  });
+  }, 3, onRetry);
   const duration_ms = Date.now() - t0;
 
   const parsed = parseJsonFromLLM<ClassificationResult>(res.content);
@@ -115,6 +116,7 @@ export interface SynthesizeInput {
 
 export async function synthesize(
   input: SynthesizeInput,
+  onRetry?: OnRetryCallback,
 ): Promise<{ result: SynthesisResult; usage: { tokens_input: number; tokens_output: number; cost_usd: number; model: string; duration_ms: number } }> {
   const system = renderPrompt(SYSTEM_PROMPT_SYNTHESIZE, {
     semestre: input.contexto.semestre,
@@ -136,7 +138,7 @@ export async function synthesize(
     ],
     temperature: 0.2,
     max_tokens: 8192,
-  });
+  }, 3, onRetry);
   const duration_ms = Date.now() - t0;
 
   const markdown = res.content.trim();
@@ -176,6 +178,7 @@ export interface CompressInput {
 
 export async function compress(
   input: CompressInput,
+  onRetry?: OnRetryCallback,
 ): Promise<{ result: CompressionResult; usage: { tokens_input: number; tokens_output: number; cost_usd: number; model: string; duration_ms: number } }> {
   const system = renderPrompt(SYSTEM_PROMPT_COMPRESS, { modo: input.modo });
   const mc = getModelConfig();
@@ -191,7 +194,7 @@ export async function compress(
     ],
     temperature: 0.1,
     max_tokens: 8192,
-  });
+  }, 3, onRetry);
   const duration_ms = Date.now() - t0;
 
   const markdown = res.content.trim();
