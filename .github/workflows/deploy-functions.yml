@@ -17,9 +17,42 @@ on:
   workflow_dispatch:   # permite disparar manualmente em Actions → Run workflow
 
 jobs:
+  # Gate de segurança: roda lint+typecheck+test+build antes do deploy.
+  # Sem isso, deploy podia subir Edge Function quebrada se o CI estivesse
+  # lento ou se o push fosse direto em main bypassando PR.
+  # Origem: auditoria 2026-05-26 (Agente 5 — Testes, F-10).
+  validate:
+    name: Validate before deploy (lint/typecheck/test/build)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
   deploy:
     name: Deploy Edge Functions to Supabase
     runs-on: ubuntu-latest
+    needs: validate   # bloqueia deploy se validate falhar
 
     steps:
       - name: Checkout

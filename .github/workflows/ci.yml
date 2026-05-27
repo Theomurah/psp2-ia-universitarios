@@ -33,8 +33,21 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Tests (vitest)
-        run: npm test
+      # --coverage gera relatório em coverage/ via v8 (config em vitest.config.ts).
+      # Sem threshold por enquanto — primeiro precisamos medir baseline. Depois
+      # de N runs, fixar lines>=70% / functions>=60% (ver auditoria F-12).
+      # Origem: auditoria 2026-05-26 (Agente 5 — Testes, F-05).
+      - name: Tests (vitest --coverage)
+        run: npm test -- --coverage
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Build
         run: npm run build
