@@ -405,8 +405,8 @@ Documento consolidado das 4 sprints, em ABNT NBR 14724 (estrutura mais completa:
 ## 🧪 Validação local da entrega (sessão 26/05/2026)
 
 ```bash
-# Roda todos os 129 testes (não consome créditos LLM)
-npm test
+# Roda todos os 140 testes com coverage (não consome créditos LLM)
+npm test -- --coverage
 
 # Gera os 9 docs de entrega .docx
 node tools/deliverable-docs/build.mjs
@@ -417,3 +417,95 @@ npm run build
 ```
 
 Todos esses passos devem terminar em verde sem erro.
+
+---
+
+## 🔍 Auditoria 2026-05-26 — pendências do que NÃO foi auto-corrigido
+
+> Origem: pacote completo em `Entregas/Auditoria-2026-05-26/` (6 relatórios + `RESUMO-EXECUTIVO.md` + `QUICKWINS.md`).
+> A auditoria identificou ~96 achados em 6 frentes. Desta sessão, **24 itens foram auto-corrigidos** (29 commits — mapa completo em `RESUMO-EXECUTIVO.md` §7 e §8). O que falta está agrupado abaixo por categoria de bloqueio.
+
+### A) 🔴 Decisões de produto / arquitetura — só você decide
+
+| ID | Achado | Frente | Esforço | O que precisa ser decidido |
+|---|---|---|---|---|
+| A2 bugs | Status `needs_review` declarado mas pipeline nunca atribui | Bugs | 2h | Pipeline pausa o job (espera revisão UI) ou completa com flag visível? |
+| A4 bugs | `compressed_cola` declarado mas pipeline só gera `compacta` | Bugs | 1h + $ | Gerar segunda compressão **dobra custo LLM por job** — autorizar? Ou flag por preferência do aluno? |
+| S-01 / A4 banco | Tokens Google em texto plano em `profiles.google_*` | Segurança / Banco | 4–6h | pgsodium (Vault), `crypto.subtle` app-side, ou aceitar dívida documentada? |
+| A2 banco | `documents.materia_code` é `text` solto, sem FK pra `subjects` | Banco | 4h | Criar tabela `subjects(user_id, code, nome)` ou aceitar `jsonb` `profiles.materias`? |
+| A3 banco | `user_system_prompts.source_documents uuid[]` denormalizado | Banco | 2h | Tabela de junção `user_system_prompt_sources` ou aceitar `uuid[]`? |
+| D1 bugs | `curso` opcional no `ProfileFormSchema` vs onboarding pede só semestre | Bugs | 1h | Tornar obrigatório (mudança de produto) ou só ajustar copy? |
+| C7 bugs | `recordConsent` fire-and-forget no LoginPage | Bugs | 1h | Registrar via trigger DB em `handle_new_user` ou retry com backoff? (LGPD) |
+| S-03 paliativo | Limite de custo diário por usuário (`profiles.max_cost_usd_per_day`) | Segurança | 2h | Default razoável? $0,50/dia? Schema change. |
+
+### B) 🔴 Acesso a infra fora do escopo do código
+
+| Achado | O que falta |
+|---|---|
+| S-10 | Confirmar via `mcp__supabase list_migrations` que **0005_seed_prompt_library** e **0007_archive_documents** estão aplicadas em prod. As outras (0003, 0004, 0006, 0007_schema_cleanup, 0008, 0009, 0010, 0011) já estão — verificado em 2026-05-26. |
+| S-12 | `supabase secrets set ALLOWED_ORIGINS="https://psp2-ia-universitarios.vercel.app"` no projeto. |
+| F3 banco | Documentar plano de backup/restore (`docs/BACKUP.md`): plano Supabase, comando de `pg_dump`, onde guarda, runbook de restore. |
+| Advisor security | 8 funções `admin_*` aparecem como "executable by authenticated" no advisor. Decisão: aceitar (cada RPC checa `is_admin()` internamente — defesa em profundidade ativa em `0010`) ou revogar `EXECUTE` de `authenticated`? Recomendado: aceitar. |
+| Advisor auth | "Leaked Password Protection" desabilitado no dashboard → habilitar em Auth → Settings → Password Strength. |
+
+### C) 🟡 Frontend grande — Pedro
+
+| Achado | Descrição | Esforço |
+|---|---|---|
+| B2 bugs | UI Conectar Drive em `SettingsPage` + handler `signInWithOAuth(google)` + POST `connect-drive` | 6h |
+| B3 bugs | Página `/meu-prompt` consumindo `generate-system-prompt` + botão Regenerar + Copiar | 6h |
+| E1 bugs | Widget de feedback (rating + tópico + comentário) inserindo em `feedback` | 4h |
+| C1 bugs | `staleTime` + `onError` em `useProfile`, `usePromptLibrary` (já feito em `useJobs`) | 1h |
+| S-02 | Frontend parsea JSON de erro da Edge Function, mostra mensagem amigável | 1h |
+| F-01 testes | Frontend tem **zero testes** — instalar `@testing-library/react`+`jsdom`, escrever smoke de `LoginPage`, `UploadDropzone`, `JobCard`, `DashboardPage`, `RequireAuth` | 15h |
+
+### D) 🟡 Backend / Edge Functions — Isaac
+
+| Achado | Descrição | Esforço |
+|---|---|---|
+| OBS-A2 | `request_id` ponta-a-ponta: UUID no frontend, propaga via header `X-Request-Id`, persiste em `jobs.request_id`+`job_events.request_id`, ecoa em body de erro. **Precisa migration 0012**. | 6h |
+| OBS-A4 | Adotar `createLogger` (helper já em `_shared/log.ts`) nas 4 Edge Functions | 4h |
+| OBS-A5 | Instrumentar wrapper OpenRouter com logs de start/end (model, latency, tokens, cost) — base já com `onRetry` | 2h |
+| A6 bugs | RPC `create_document_with_job` transacional + ajustar `ingest-document` | 2h |
+| A7 bugs | Watchdog `pg_cron` pra jobs presos > 10min (pattern documentado em `CLAUDE.md`) | 4h |
+| F-02 testes | Testes de contrato dos 4 handlers Edge Functions (920 LoC sem teste) | 15h |
+| F-03 testes | Teste E2E happy-path do pipeline com fetch stub determinístico | 8h |
+| S-06 | Wrapper `logError(ctx, err)` filtrando `details`/`hint` do PostgrestError, aplicado nos 4 handlers | 2h |
+| S-04 (cont.) | Confirmar `materia_code` contra lista real do profile + hash do conteúdo bruto pra detectar regenerações suspeitas | 2h |
+| S-03 definitivo | Rate limit distribuído via Upstash Redis (substituir Map in-memory) | 6h |
+| S-09 | `deno.lock` versionado + `deno task check` no CI | 2h |
+| OBS-A7 | Painel ops: `tools/ops/errors-last-24h.sql` + `tools/ops/failed-jobs.sql` + (opcional) rota `/admin` web | 3h SQL + 12h UI |
+
+### E) 🟡 QA — Luis Felipe + Theo
+
+| Achado | Descrição | Esforço |
+|---|---|---|
+| F-09 | `docs/QA/smoke-checklist.md` versionado com matriz feature × passo × resultado | 3h |
+| F-04 | Cobrir `cors.ts`, `http.ts`, `rate-limit.ts`, `vision/*` com testes (~1013 LoC) | 6h |
+| F-12 | `coverage.thresholds` em `vitest.config.ts` (lines>=70, statements>=70, functions>=60) depois de medir baseline | 1h |
+| S-13 | Smoke test pós-deploy validando chain `ingest → process` | 3h |
+| F-11 | `noUncheckedIndexedAccess: true` em `tsconfig.base.json` + corrigir fallout | 1h+ |
+
+### F) 🟡 DX — decisão de processo
+
+| Achado | Descrição |
+|---|---|
+| F-07 | Prettier + script `format` + check no CI (alinhamento de estilo entre 5 devs) |
+| F-08 | Husky + lint-staged (pré-commit que roda lint + typecheck em arquivos staged) |
+| E3 banco | Consolidar instruções repetidas de aplicação de migration num `supabase/migrations/README.md` |
+| A6 cod morto | Deletar branch remota `feature/sprint1-pipeline` (`git push origin --delete feature/sprint1-pipeline`) — já mergeada em main, ruído no `git branch -a` |
+| A7 cod morto | Decidir destino do branch `dev`: descontinuar (trunk-based atual) ou reativar GitFlow? |
+| F-13 follow-up | Cobertura visível no README ou em badge separada quando F-12 fixar threshold |
+
+### G) Itens já endereçados nesta sessão (29 commits)
+
+Mapa completo em `Entregas/Auditoria-2026-05-26/RESUMO-EXECUTIVO.md` §7 e §8. Resumo por categoria:
+
+- **DB / migrations**: 0007_schema_cleanup (CHECK + índice + comments SQL) ✓ aplicada em prod · 0011_advisor_fixes (FK index + policy consolidation) ✓ aplicada em prod
+- **Pipeline crítico**: claim atômico anti-double-execution, `started_at` não-regressivo, `validateJudge` wirado, `attempt_count++` no fail, prompt injection sandbox, guard markdown > 1MB, Zod body em process-document
+- **Observabilidade**: ErrorBoundary global + handlers window, helper `_shared/log.ts`, `onRetry` callback + wiring em `job_events`, badge CI no README
+- **Segurança**: whitelist `extension`, `verify_jwt = true` explícito por função em `config.toml`, CORS retorna `''` em origin não-whitelisted
+- **Frontend**: `getSession()` antes do upload, `lastStatusRef` cap, Realtime filter `user_id=eq`, MarkdownPreview migrado pra `useQuery`+AbortSignal
+- **Higiene**: deleta vision dead code (-182 linhas), remove devDeps órfãs (Tailwind/PostCSS/Autoprefixer), tipos órfãos pra `types.internal.ts`
+- **CI/CD**: `--coverage` no test + upload artifact, `deploy-functions` com `needs: validate` gate, `@vitest/coverage-v8` em devDeps
+- **Docs**: `CLAUDE.md` criado (logs/segurança/estilo/pg_cron roadmap), TODO em `SLO`
