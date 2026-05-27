@@ -6,6 +6,9 @@ dist/
 build/
 .vite/
 
+# Test coverage (gerado por vitest --coverage)
+coverage/
+
 # Env
 .env
 .env.local
