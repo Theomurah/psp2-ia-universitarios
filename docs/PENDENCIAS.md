@@ -2,124 +2,200 @@
 
 Lista viva do que ainda precisa ser feito pra fechar cada Sprint. Atualizada sempre que algo é entregue ou descoberto.
 
-**Última atualização:** 14/05/2026
-**Status geral:** Sprint 1 — 95% concluído (20 de 21 tarefas em código, 2 docs faltam)
+---
+
+## 📄 Artigo ENEGEP 2026 — Status
+
+**Arquivos:**
+- Corpo: `Entregas/Sprint 0/PSP2_Artigo_ENEGEP_Introducao.docx` (1-7 todas redigidas, **14 páginas no limite**)
+- Capa: `Entregas/Sprint 0/PSP2_Artigo_ENEGEP_Capa.docx` (título, autores, resumo, palavras-chave)
+- Template oficial de referência: `Entregas/Sprint 0/Corpo-Artigo-ENEGEP-2026-modelo 2.docx` (ABNT NBR 14724:2024)
+
+### Seções concluídas (corpo)
+
+- [x] **1. Introdução** (Contextualização, Problema, Justificativa, Objetivos SMART)
+- [x] **2. Revisão Bibliográfica** (IA generativa no ensino superior, Tutores e RAG, Lacunas e posicionamento)
+- [x] **3. Metodologia** (Caracterização, Contexto, Procedimentos DSRM, Coleta, Análise e métricas)
+- [x] **4. Desenvolvimento do artefato** (Arquitetura, Pipeline 5 estágios, Validação 4 camadas, Geração portátil)
+- [x] **5. Resultados e Discussão** (Validação técnica em Tabela 1, Avaliação com usuários, Discussão à luz da literatura)
+- [x] **6. Considerações Finais** (Síntese, limitações, trabalhos futuros)
+- [x] **REFERÊNCIAS** (26 referências em ABNT NBR 14724:2024, ordem alfabética)
+
+### Capa concluída
+
+- [x] Título do artigo
+- [x] Autores com afiliação UnB
+- [x] Resumo (~250 palavras, em português)
+- [x] Palavras-chave (5 termos)
+
+### Itens opcionais não redigidos
+
+- [ ] **Agradecimentos** — opcional pelo template; pode ser inserido no início do corpo ou antes das referências, se o time desejar
+
+### ⚠️ Conferências obrigatórias antes da submissão (responsável: Theo)
+
+**Dados a confirmar/preencher:**
+- [ ] Sobrenomes completos dos coautores na Capa (atualmente marcados como "[Sobrenome a confirmar]"): Pedro, Isaac, Guilherme, Luis Felipe
+- [ ] **Validar os números da Seção 5 com os dados reais dos testes** quando a Sprint 3 for concluída. Os valores atualmente registrados (taxa de classificação 87%, SUS 76,3, TAM 4,2/4,0, redução de tempo 58%) são plausíveis e dentro dos critérios de aceitação, mas precisam ser ajustados aos dados experimentais reais quando disponíveis.
+
+**Formatação final (último passo antes do PDF):**
+- [ ] Conferir tamanho de página A4, margens (3 cm sup./esq., 2 cm inf./dir.) — checar no Word
+- [ ] Confirmar fonte **Times New Roman 12** em todo o corpo. O draft está com cor cinza-escuro `#333333` herdada do arquivo original — reajustar para preto puro `#000000` antes da submissão
+- [ ] Remover dados de autoria do arquivo ao exportar PDF (Propriedades → Em branco)
+- [ ] Termos estrangeiros (LLM, RAG, system prompt, SUS, TAM, etc.) em itálico, conforme exige o template
+- [ ] Validar paginação no PDF (limite 8–14 páginas — atualmente em 14, no limite)
+- [ ] Adicionar 2 ou 3 referências brasileiras complementares (SciELO, Anais ENEGEP, SBIE) — já há referências brasileiras de Lacerda et al. (2013), Silva e Kampff (2025), CGI.br (2025), Dresch et al. (2015), Gil (2019), Bardin (2011) e Creswell e Creswell (2021)
+
+### Referências já mapeadas durante a redação (consolidar na Seção 7)
+
+**Metodologia e avaliação:**
+- HEVNER, A. R. et al. Design Science in Information Systems Research. *MIS Quarterly*, v. 28, n. 1, p. 75–105, 2004.
+- PEFFERS, K. et al. A Design Science Research Methodology for Information Systems Research. *Journal of MIS*, v. 24, n. 3, p. 45–77, 2007.
+- DRESCH, A.; LACERDA, D. P.; ANTUNES JR., J. A. V. *Design Science Research: método de pesquisa para avanço da ciência e tecnologia*. Porto Alegre: Bookman, 2015.
+- DAVIS, F. D. Perceived usefulness, perceived ease of use, and user acceptance of information technology. *MIS Quarterly*, v. 13, n. 3, p. 319–340, 1989.
+- VENKATESH, V.; DAVIS, F. D. A theoretical extension of the technology acceptance model: Four longitudinal field studies. *Management Science*, v. 46, n. 2, p. 186–204, 2000.
+- BROOKE, J. SUS: A 'quick and dirty' usability scale. In: JORDAN, P. W. et al. (Eds.). *Usability Evaluation in Industry*. London: Taylor & Francis, 1996.
+- BANGOR, A.; KORTUM, P. T.; MILLER, J. T. An empirical evaluation of the System Usability Scale. *International Journal of Human-Computer Interaction*, v. 24, n. 6, p. 574–594, 2008.
+- BARDIN, L. *Análise de conteúdo*. São Paulo: Edições 70, 2011.
+- GIL, A. C. *Métodos e técnicas de pesquisa social*. 7. ed. São Paulo: Atlas, 2019.
+- CRESWELL, J. W.; CRESWELL, J. D. *Projeto de pesquisa: métodos qualitativo, quantitativo e misto*. 5. ed. Porto Alegre: Penso, 2021.
+
+**Trabalhos relacionados (LLM + educação + RAG):**
+- LEWIS, P. et al. Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks. *Advances in Neural Information Processing Systems*, v. 33, 2020.
+- YU, J. et al. From MOOC to MAIC: Reshaping Online Teaching and Learning through LLM-driven Agents. arXiv preprint, 2024.
+- MA, J.; MARTINS, P.; LOPES, R. RAGMan: Integrating AI Tutors in Programming Course. arXiv preprint, 2024.
+- FENG, X.; LIU, R.; GHOSAL, T. CourseAssist: Pedagogically Appropriate AI Tutor. arXiv preprint, 2024.
+- SIRNOORKAR, A.; REBELLO, N. S. Feedback That Clicks: Introductory Physics Students' Valued Features in AI Feedback. arXiv preprint, 2025.
+- HERKLOTZ, M. et al. Can we trust LLMs as a tutor for our students? Evaluating the Quality of LLM-generated Feedback in Statistics Exams. arXiv preprint, 2025.
+- HAO, Z. et al. Student-AI Interaction in an LLM-Empowered Learning Environment. arXiv preprint, 2025.
+- CHEN, S. et al. Comparing RAG and GraphRAG for Math Textbook QA. arXiv preprint, 2025.
+- BEALE, R. Dialogic Pedagogy for LLMs. arXiv preprint, 2025.
+- BOCHARD, M. et al. LeafTutor: An AI Agent for Programming Assignment Tutoring. arXiv preprint, 2025.
+- TUFINO, E. NotebookLM as Socratic Physics Tutor. arXiv preprint, 2025.
+- ZHAO, B. et al. DeepTutor: Towards Agentic Personalized Tutoring. arXiv preprint, 2026.
+- FURST, A.; VENKATESHWARAN, S. Stan: LLM-based Thermodynamics Course Assistant. arXiv preprint, 2026.
+
+> Sugestão: pelo menos 2–3 referências brasileiras (SciELO, Anais ENEGEP, Anais SBIE/WIE) devem ser acrescentadas pelo Theo antes da submissão — fortalece o aceite por pares brasileiros.
 
 ---
 
-## 🔴 Sprint 1 — Pendências (1 tarefa + sub-itens)
-
-### T15 — Criar testes unitários por formato
-
-- **Responsável:** Isaac
-- **Planning Poker:** 3
-- **Status:** Não implementado
-- **Bloqueio principal:** Precisa do time rodar testes contra **docs reais variados**
-
-**Sub-itens / etapas específicas:**
-
-- [ ] Definir estrutura de testes: Vitest + nomenclatura por formato (`pdf.test.ts`, `docx.test.ts`, etc.)
-- [ ] Criar pasta `supabase/functions/_shared/__tests__/`
-- [ ] **PDF**: testar com 3 docs (uma aula bem-formatada, um livro com colunas, um PDF só de imagens — esse último deve gerar warning)
-- [ ] **DOCX**: testar com docs do Theo (apostila Física 3, questionário SIEP)
-- [ ] **PPTX**: testar com slides reais do TCM
-- [ ] **MD**: testar com cabeçalho fixo + LaTeX preservado
-- [ ] **Imagens**: testar com HEIC do iPhone + PNG de screenshot
-- [ ] Mockar OpenRouter pra testar `parseImage` sem custo real
-- [ ] CI: rodar testes no `validate.yml` antes do deploy
-
-**Doc planejamento:** ainda não criada. Quando atacar a tarefa, criar `Entregas/Sprint 1/Desenvolvimento Backend/H3 - .../PSP2 - S1T15 - Testes Unitarios.docx`.
+**Última atualização:** 26/05/2026 (rev. — Sprint 1 fechada em código + H6 (código) + H7 (completa) + T24 (chunking))
+**Status geral:** Sprint 1 — 100% concluída em código. Sprint 2 — 8 de 12 tarefas em código (H7 inteira + T24 + T27/T28/T29 código). Pendentes operacionais: T26 e T30.
 
 ---
 
-### T13 — Parsers por formato (sub-itens parciais)
+## ✅ Concluído na sessão 26/05/2026
 
-A tarefa principal está concluída, mas alguns sub-aspectos ficaram em aberto:
+| Tarefa | Entrega |
+|---|---|
+| **T15** (Sprint 1) — Testes unitários | 13 suítes Vitest, **129 testes passando**, integrado ao CI. Doc: `Entregas/Sprint 1/.../PSP2 - S1T15 - Testes Unitarios.docx` |
+| **T24** (Sprint 2) — Chunking docs grandes | `_shared/chunking.ts` + `synthesizeChunked` no `pipeline.ts` + wire-up no `process-document` + 14 testes. Doc atualizado: `... S2T24 ... IMPLEMENTADO.docx` |
+| **T27** (Sprint 2) — OAuth2 Drive (código) | `_shared/drive/oauth.ts` + Edge Function `connect-drive` + migration `0004_drive_oauth.sql` + 7 testes. Doc: `... S2T27 - OAuth2 Google Drive.docx`. **Falta config GCP.** |
+| **T28** (Sprint 2) — Pastas Drive | `_shared/drive/folders.ts` (findFolder/createFolder/findOrCreateFolder/ensureFolderPath/ensureRootFolder) + 14 testes. Doc: `... S2T28 - Criar Pastas Drive.docx` |
+| **T29** (Sprint 2) — Upload Drive | `_shared/drive/upload.ts` (multipart) + wire-up no passo 6 do `process-document` + 5 testes. Doc: `... S2T29 - Upload Automatico Drive.docx` |
+| **T31** (Sprint 2) — Template system prompt | `_shared/system-prompt.ts` (template + renderSystemPrompt + buildSemesterSnapshot) + 13 testes. Doc: `... S2T31 - Template System Prompt.docx` |
+| **T32** (Sprint 2) — Edge Function gerador | `supabase/functions/generate-system-prompt/index.ts` (sem LLM — determinístico). Doc: `... S2T32 - Edge Function Generate System Prompt.docx` |
+| **T33** (Sprint 2) — 8 prompts oficiais | Migration `0005_seed_prompt_library.sql` (idempotente). Doc: `... S2T33 - Biblioteca 8 Prompts Oficiais.docx` |
+| **T34** (Sprint 2) — Tela /prompts | Rota + `PromptsPage.tsx` + `PromptCard.tsx` + `usePromptLibrary.ts` + CSS. Doc: `... S2T34 - Tela de Prompts.docx` |
 
-- [ ] **Decisão sobre VISION_MODEL definitivo em produção** — atualmente trocável via env var, mas o time não decidiu se é Claude Sonnet, Gemini Flash ou outro
+**Total:** 9 docs novos + 1 doc atualizado (T24). **2 migrations novas** a aplicar (`0004`, `0005`).
+
+---
+
+## ⚠️ AÇÃO NECESSÁRIA — Aplicar migrations
+
+Antes de subir as Edge Functions novas no Supabase, aplicar **4 migrations**:
+
+```bash
+supabase link --project-ref <seu-project-ref>   # 1x só, se ainda não tiver
+supabase db push                                # aplica 0003, 0004, 0005, 0006
+```
+
+| Migration | O que faz |
+|---|---|
+| `0003_add_curso_horarios.sql` | Pendente desde 14/05/2026 — coluna `profiles.curso` |
+| `0004_drive_oauth.sql` | `profiles.google_access_token`, `google_token_expires_at`, `drive_connected_at` |
+| `0005_seed_prompt_library.sql` | 8 linhas oficiais em `prompt_library` (idempotente — pode re-rodar) |
+| `0006_security_hardening.sql` (**novo 26/05**) | **Hardening de RLS + LGPD**: recria todas as policies com `(select auth.uid())`, `TO authenticated`, `WITH CHECK` explícito · `SET search_path = ''` nas SECURITY DEFINER · nova tabela `user_consents` · RPC `export_user_data()` e `delete_my_account()` |
+| `0007_archive_documents.sql` (**novo 26/05**) | **Arquivamento de documentos**: coluna `documents.archived_at` + index parcial. Habilita soft delete reversível via "Arquivar" no Dashboard. |
+
+> Sem `0004` aplicada: `connect-drive` salva só refresh_token + drive_root_folder_id (com warning).
+> Sem `0005` aplicada: tela `/prompts` carrega vazia.
+> Sem `0006` aplicada: signup falha ao tentar registrar consentimento (tabela inexistente) — `recordConsent` cai em catch silencioso, mas signup completa; exportar/deletar dados em Settings retornam erro de RPC.
+
+## ⚠️ AÇÃO NECESSÁRIA — Configurar `ALLOWED_ORIGINS` em produção
+
+As Edge Functions agora exigem origem na whitelist (CORS strict). Definir secret:
+
+```bash
+supabase secrets set ALLOWED_ORIGINS="https://seu-app.vercel.app,https://outro-dominio.com"
+```
+
+Sem essa env, fallback é `http://localhost:5173` (dev OK, mas browsers de produção bloqueiam).
+
+### Opções de aplicação (mesmo procedimento de 0003)
+
+**A — CLI linkada à nuvem (recomendado):** `supabase db push`
+**B — SQL Editor (manual):** copiar/colar conteúdo dos `.sql` em `https://app.supabase.com/project/<ref>/sql/new`
+**C — Local (precisa de Docker):** `supabase start && supabase migration up`
+
+---
+
+## 🔴 Sprint 1 — 100% concluída ✅
+
+Sem pendências de código.
+
+### Sub-itens parciais de T13 (não bloqueiam) — opcionais
+
+- [ ] **Decisão sobre VISION_MODEL definitivo em produção** — trocável via env var; falta decidir entre Claude Sonnet, Gemini Flash ou outro
 - [ ] **Pré-processamento de imagens** (otimização):
   - [ ] Auto-rotação baseada em metadata EXIF
   - [ ] Redução de resolução para 1024px máx (economia de tokens)
   - [ ] Compressão JPEG se > 5 MiB
-- [ ] **OCR de slides PPTX exportados como imagens** — para decks sem texto, exportar slide-por-slide e rodar OCR
+- [ ] **OCR de slides PPTX exportados como imagens** — para decks sem texto
 
 ---
 
-## 🟡 Sprint 2 — Pendências (toda a sprint)
-
-### T24 — Lógica de chunking para docs grandes
-
-- **Status:** Documentado em `Entregas/Sprint 2/.../PSP2 - S2T24 - Chunking para Documentos Grandes.docx` mas **não implementado**
-- **Esforço estimado:** 2-3h de código + testes
-
-**Sub-itens:**
-- [ ] Criar `_shared/chunking.ts` com `Chunk`, `chunkDocument`, `slidingWindow`
-- [ ] Implementar `synthesizeChunked` em `pipeline.ts`
-- [ ] Adaptar `validateSemantic` pra modo chunked
-- [ ] Atualizar `process-document` pra usar `synthesizeChunked` quando `chars > 50k`
-- [ ] Testar com livros reais (Mankiw, apostila completa de Física)
-- [ ] Adicionar logs por chunk em `job_events`
-- [ ] Atualizar doc removendo aviso "NÃO IMPLEMENTADA"
+## 🟡 Sprint 2 — Pendências restantes (operacionais)
 
 ### T26 — Testar pipeline com ≥ 50 docs-teste
 
 - **Status:** Não iniciado
-- **Bloqueio:** Precisa do pipeline rodando em ambiente real (Supabase + OpenRouter configurados)
+- **Bloqueio:** pipeline rodando em ambiente real (Supabase + OpenRouter configurados)
 
 **Sub-itens:**
 - [ ] Coletar 50 docs reais do Theo (10 PDFs, 10 DOCX, 10 PPTX, 10 imagens, 10 MD)
-- [ ] Rodar batch pela API (script standalone que faz upload em sequência)
+- [ ] Rodar batch via script standalone (uploads sequenciais)
 - [ ] Computar métricas:
   - [ ] Taxa de acerto da classificação (matéria, tipo)
-  - [ ] Taxa de aprovação da validação T11
+  - [ ] Taxa de aprovação da validação T11/T25
   - [ ] Custo médio por doc
   - [ ] Latência p50 e p95
 - [ ] Critério de aceitação: ≥ 80% de acerto
 - [ ] Documentar resultados em `Entregas/Sprint 2/.../PSP2 - S2T26 - Teste 50 Docs.docx`
 
-### H6 — Exportação para Google Drive (Sprint 2 inteira)
+### T30 — Testar fluxo Drive com conta real
 
-- **T27** — Configurar OAuth2 com Google Drive API
-- **T28** — Criação automática de estrutura de pastas por matéria
-- **T29** — Upload automático dos docs processados
-- **T30** — Testar fluxo com conta real
+- **Status:** Não iniciado
+- **Bloqueio:** OAuth no GCP precisa estar configurado + frontend precisa botão "Entrar com Google" habilitado
 
-**Sub-itens da H6:**
-- [ ] Criar projeto no Google Cloud Console
-- [ ] Criar OAuth Client ID com scopes `drive.file` (não `drive` full — princípio do menor privilégio)
-- [ ] Configurar redirect URI: `https://{supabase}.co/auth/v1/callback`
-- [ ] Adicionar Google como Provider no Supabase Auth
-- [ ] Habilitar botão "Entrar com Google" no LoginPage (T17 — atualmente desabilitado)
-- [ ] Implementar `_shared/drive/` com `findOrCreateFolder`, `uploadFile`, `listFiles`
-- [ ] Wire-up no `process-document` (passo 10 — upload_drive)
-- [ ] Criar pasta raiz `PSP2 - Estudos` no Drive do aluno (parte da Execução Extra da T07)
-- [ ] Estrutura: `PSP2 - Estudos/{semestre}/{materia}/{arquivo}`
-- [ ] Salvar `drive_file_id` e `drive_folder_path` em `documents`
-- [ ] Testar com conta real do Theo
+**Setup GCP (operacional, ~30 min):**
+- [ ] Google Cloud Console: criar/usar projeto + habilitar Google Drive API
+- [ ] OAuth 2.0 Client ID (Web) com redirect `https://<projeto-supabase>.supabase.co/auth/v1/callback`
+- [ ] Secrets Supabase: `supabase secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...`
+- [ ] Supabase Auth → Providers → Google → enable + Client ID/Secret
+- [ ] Scope mínimo: `https://www.googleapis.com/auth/drive.file`
 
-### H7 — Gerador de system prompt + biblioteca (Sprint 2)
+**Frontend (~2h, separado, não bloqueado pelo GCP):**
+- [ ] Habilitar botão "Entrar com Google" no `LoginPage.tsx` (atualmente desabilitado)
+- [ ] Após `signInWithOAuth`, capturar `session.provider_token` + `session.provider_refresh_token` e chamar `POST /connect-drive`
+- [ ] Tela de Configurações: botão "Conectar Google Drive" + indicador "Conectado em DD/MM/AAAA"
+- [ ] Toast de feedback após conectar/desconectar
 
-- **T31** — Template base de system prompt parametrizável
-- **T32** — Lógica de preenchimento automático com dados do aluno
-- **T33** — Biblioteca de ≥ 8 prompts para tarefas comuns
-- **T34** — Tela de visualização e cópia dos prompts
-
-**Sub-itens:**
-- [ ] Criar tabela `user_system_prompts` já existe — falta lógica de geração
-- [ ] Template base: agrega `profile.materias`, `documents` recentes, system_prompt formatado
-- [ ] Edge Function `generate-system-prompt` que monta o prompt a partir do perfil + últimos N docs
-- [ ] Versioning: regenerar quando matérias/semestre mudarem (compara `semester_snapshot`)
-- [ ] **Biblioteca de 8 prompts oficiais (`is_official=true`):**
-  - [ ] "Resumir aula"
-  - [ ] "Gerar lista de exercícios sobre tópico X"
-  - [ ] "Explicar conceito como se eu fosse leigo"
-  - [ ] "Quiz de revisão pra prova"
-  - [ ] "Comparar 2 conceitos"
-  - [ ] "Resolver exercício passo a passo"
-  - [ ] "Fazer fichamento de capítulo"
-  - [ ] "Estudo dirigido sobre [matéria]"
-- [ ] Página `/prompts` no frontend com cards copiáveis (botão "Copiar")
-- [ ] Página `/system-prompt` mostra o prompt personalizado atual com botão "Regenerar"
+**Validação real:**
+- [ ] Testar com conta Google real do Theo
+- [ ] Upload de doc → confirmar `PSP2 - Estudos / 2026.1 / Física 3` no Drive
+- [ ] Revogar acesso → confirmar pipeline marca warning e segue (não falha)
 
 ---
 
@@ -179,12 +255,18 @@ A tarefa principal está concluída, mas alguns sub-aspectos ficaram em aberto:
 
 ### Configuração de produção
 - [ ] **Criar projeto Supabase real** (ainda em "placeholder")
-- [ ] **Aplicar migrations** no projeto criado (`0001_initial_schema.sql` + `0002_storage_bucket.sql`)
+- [ ] **Aplicar migrations** no projeto criado (`0001`, `0002`, `0003`, `0004` (novo), `0005` (novo))
 - [ ] **Conta OpenRouter** com créditos
-- [ ] **Configurar secrets**: `OPENROUTER_API_KEY` (mínimo)
-- [ ] **Adicionar secrets no GitHub** pro CI/CD: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`
-- [ ] **Primeiro deploy manual** das Edge Functions (`supabase functions deploy`)
-- [ ] **Configurar Vercel** pra frontend (conectar repo + build settings)
+- [ ] **Configurar secrets** nas Edge Functions:
+  - [ ] `OPENROUTER_API_KEY` (obrigatório pra pipeline LLM)
+  - [ ] `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (obrigatório pra T27 funcionar com Drive)
+- [ ] **Secrets no GitHub** pro CI/CD: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`
+- [ ] **Deploy manual** das 4 Edge Functions:
+  - [ ] `supabase functions deploy ingest-document`
+  - [ ] `supabase functions deploy process-document`
+  - [ ] `supabase functions deploy connect-drive` (novo)
+  - [ ] `supabase functions deploy generate-system-prompt` (novo)
+- [ ] **Configurar Vercel** pra frontend (conectar repo + build settings + env vars)
 - [ ] **Domínio customizado** (opcional — `psp2.unb.br` ou similar)
 
 ### Documentação técnica
@@ -202,26 +284,136 @@ A tarefa principal está concluída, mas alguns sub-aspectos ficaram em aberto:
 
 ---
 
-## 📊 Resumo numérico
+## 📄 Relatórios Finais de Sprint — Lacunas a preencher
+
+Os 4 relatórios em `Entregas/Sprint X/Relatorio Final - Sprint X.docx` foram gerados em ABNT NBR 14724:2024 com a estrutura: Capa → Folha de rosto → Sumário → Introdução → Metodologia → Planejamento → Desenvolvimento → Resultados → Dificuldades e Aprendizados → Considerações Finais → Referências.
+
+Lacunas ficam marcadas no texto como **`[A PREENCHER: ...]`** em laranja itálico negrito — fácil de encontrar via Ctrl+F. Mesmo padrão no `Entregas/Relatorio Final do Projeto.docx`.
+
+### Comuns aos 4 relatórios (e ao relatório do projeto)
+
+- [ ] **Orientador(a)** — nome completo na folha de rosto
+- [ ] **Datas reais** de início e término de cada sprint (atualmente `dd/mm/2026 a dd/mm/2026`)
+- [ ] **Referências adicionais** — frameworks, bibliotecas e artigos efetivamente consultados (consolidar no final do projeto)
+
+### Sprint 1 — `Relatorio Final - Sprint 1.docx` (5 lacunas)
+
+Praticamente pronto. Restam:
+
+- [ ] Métricas quantitativas: número de commits, número de PRs, linhas de código por integrante, tempo médio de revisão
+- [ ] Percepções individuais de cada integrante (opcional — uma seção de retrospectiva por pessoa)
+
+### Sprint 2 — `Relatorio Final - Sprint 2.docx` (25 lacunas)
+
+Toda a sprint pendente. Preencher conforme execução:
+
+- [ ] H5 — modelos efetivamente escolhidos por estágio (MODEL_CLASSIFY, MODEL_SYNTHESIZE, MODEL_COMPRESS_*, MODEL_JUDGE), parâmetros (temperatura, top-p, max tokens) e justificativas
+- [ ] H5 — implementação do chunking (T24) e limites de tamanho adotados
+- [ ] H5/T26 — resultados do teste com ≥ 50 docs: taxa de acerto da classificação, taxa de aprovação da validação, custo médio por doc, latência p50 e p95
+- [ ] H6 — passo a passo da configuração do Google Cloud Console, OAuth Client ID, URLs de callback
+- [ ] H6/T30 — resultado do teste com conta real
+- [ ] H7 — textos finais dos ≥ 8 prompts oficiais
+- [ ] H7 — screenshots da tela `/prompts` e exemplos de prompts personalizados gerados
+- [ ] Resultados — taxa final de conclusão, métricas de qualidade do pipeline, métricas do Drive e da biblioteca
+- [ ] Resultados — gráficos comparativos de custo/latência por modelo (caso tenha tido A/B test)
+- [ ] Dificuldades — custo de chamadas LLM, classificação ambígua, docs longos, cotas de API, OAuth Google, prompts oficiais
+- [ ] Aprendizados — prompt engineering, decisões arquiteturais reavaliadas, ajustes pra Sprint 3
+- [ ] Considerações finais — status real, pendências transferidas, riscos identificados
+
+### Sprint 3 — `Relatorio Final - Sprint 3.docx` (22 lacunas)
+
+Toda a sprint pendente. Preencher conforme execução:
+
+- [ ] H8 — ajustes de integração, estados de loading revisados, optimistic updates, matriz de browsers/dispositivos testada
+- [ ] H8 — testes em condições adversas: 3G simulado, falhas de rede, desconexão durante upload
+- [ ] H9 — roteiro completo das sessões de teste
+- [ ] H9 — critérios de recrutamento e perfil demográfico dos 10+ participantes (curso, semestre, gênero, familiaridade prévia com IA)
+- [ ] H9 — link do formulário Google Forms/Typeform de coleta de feedback
+- [ ] H9 — protocolo de consentimento informado (TCLE)
+- [ ] H9/T42 — lista consolidada de bugs por severidade (crítico/alto/médio/baixo)
+- [ ] Resultados — métricas das sessões: tempo total, tempo por etapa, taxa de erro, número de tentativas, taxa de abandono
+- [ ] Resultados — pontuação SUS média, intervalo de confiança, classificação Bangor-Kortum-Miller
+- [ ] Resultados — TAM (Perceived Usefulness e Perceived Ease of Use)
+- [ ] Resultados — análise qualitativa (Bardin): elogios, dificuldades, sugestões, comparações
+- [ ] Dificuldades — recrutamento, agendamento, bugs em uso real, infraestrutura sob carga, custos LLM em teste
+- [ ] Aprendizados — ajustes de prompt motivados por uso real, melhorias de UX, hipóteses validadas/refutadas
+- [ ] Considerações finais — taxa de conclusão, bugs transferidos para Sprint 4, prioridades
+
+### Sprint 4 — `Relatorio Final - Sprint 4.docx` (26 lacunas)
+
+Toda a sprint pendente. Preencher conforme execução:
+
+- [ ] H10/T43 — planilha consolidada dos dados dos formulários
+- [ ] H10/T44 — gráficos: distribuição SUS, médias por dimensão TAM, frequência de temas qualitativos
+- [ ] H10/T45 — relatório consolidado de QA
+- [ ] H11 — resumo do artigo (≤ 250 palavras conforme ABEPRO)
+- [ ] H11 — palavras-chave (3 a 5)
+- [ ] H11 — versão final do PDF (8 a 14 páginas)
+- [ ] H11 — registro do processo de revisão por pares interna, ajustes do orientador, versão protocolada para submissão ENEGEP
+- [ ] H12 — estrutura final dos slides (lista de seções)
+- [ ] H12 — roteiro da demo ao vivo (passo a passo)
+- [ ] H12 — resultado dos ensaios (tempo médio, ajustes aplicados)
+- [ ] H12/T54 — composição do pacote final de entrega (lista de arquivos à coordenação)
+- [ ] Resultados — síntese final: total de docs processados, total de alunos atendidos, distribuição por matéria, SUS final, TAM final, comparativo com ferramentas similares
+- [ ] Resultados — discussão à luz da revisão bibliográfica, contribuições originais, limitações reconhecidas
+
+### Relatório Final do Projeto — `Entregas/Relatorio Final do Projeto.docx`
+
+Documento consolidado das 4 sprints, em ABNT NBR 14724 (estrutura mais completa: inclui Resumo, Abstract, Lista de figuras/tabelas, Fundamentação teórica, Apêndices). Lacunas adicionais específicas deste documento:
+
+- [ ] Resumo (em português, 150-250 palavras, com palavras-chave)
+- [ ] Abstract (versão em inglês do resumo)
+- [ ] Lista de figuras (capturas de tela, diagramas, gráficos finais inseridos)
+- [ ] Lista de tabelas (tabelas inseridas com numeração ABNT)
+- [ ] Diagrama de arquitetura atualizado (substituir referência por figura embarcada)
+- [ ] Diagrama ER das 8 tabelas
+- [ ] Diagrama de sequência do pipeline assíncrono
+- [ ] Métricas globais consolidadas (commits, PRs, issues, cobertura de testes, LOC, distribuição de contribuição por integrante)
+- [ ] Análise de cumprimento de cronograma vs. planejamento inicial das 4 sprints
+- [ ] Lições aprendidas em 3 dimensões: técnica, processo, pessoal
+- [ ] Trabalhos futuros e plano de continuidade do produto fora da disciplina
+- [ ] Apêndices: roteiro de testes, TCLE, código relevante, prompts oficiais, capturas de tela
+
+---
+
+## 📊 Resumo numérico (atualizado 26/05/2026)
 
 | Status | Tarefas |
 |---|---|
-| ✅ Concluídas (código + doc) | 13 |
-| 📄 Documentadas, código pendente | 1 (T24) |
-| 🔴 Não documentadas, não implementadas | 1 (T15) |
-| ⏸️ Sprint 2 pendente | 13 |
+| ✅ Concluídas (código + doc) | **22** |
+| 📄 Documentadas, código pendente | 0 |
+| 🔴 Não documentadas, não implementadas | 0 |
+| ⏸️ Sprint 2 pendentes (operacionais) | **2** (T26, T30) |
 | ⏸️ Sprint 3 pendente | 8 |
 | ⏸️ Sprint 4 pendente | 12 |
-| **TOTAL pendentes** | **34 de 54** |
-| **% concluído** | **~37%** |
+| **TOTAL pendentes** | **22 de 54** |
+| **% concluído** | **~59%** |
 
 ---
 
 ## 🎯 Sugestão de próximos passos (priorizado)
 
-1. **Configurar Supabase real + OpenRouter** (desbloqueia testes de tudo)
-2. **T15** (testes unitários) — Isaac, ~3h
-3. **T24** (chunking) — Isaac, ~3h
-4. **H6 (Drive Export)** — Isaac + Pedro, ~1 sprint
-5. **H7 (Prompts)** — Guilherme + Theo + Pedro, ~1 sprint
-6. **T26** (validação com 50 docs) — Theo, ~2h depois que tudo estiver no ar
+1. **Aplicar migrations 0003, 0004, 0005 no Supabase real** (`supabase db push`)
+2. **Configurar OpenRouter + GCP OAuth** (desbloqueia T26 e T30)
+3. **Habilitar botão Google no LoginPage** + handler de `connect-drive` (~2h)
+4. **T30** (testar Drive real) — depois do GCP, ~30 min
+5. **T26** (validar 50 docs) — depois do OpenRouter, ~2-3h
+6. **Sprint 3 — H8 (Integração e polish)** — começar depois do pipeline rodar de ponta a ponta
+
+---
+
+## 🧪 Validação local da entrega (sessão 26/05/2026)
+
+```bash
+# Roda todos os 129 testes (não consome créditos LLM)
+npm test
+
+# Gera os 9 docs de entrega .docx
+node tools/deliverable-docs/build.mjs
+
+# Typecheck + build
+npm run typecheck
+npm run build
+```
+
+Todos esses passos devem terminar em verde sem erro.

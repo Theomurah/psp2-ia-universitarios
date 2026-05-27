@@ -36,6 +36,9 @@ jobs:
         run: |
           supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
 
+      # Todas as functions são deployadas COM verify-jwt habilitado.
+      # process-document aceita Bearer service_role (chamada interna do ingest-document)
+      # OU JWT do usuário dono do job — validação manual em authorizeProcessDocument().
       - name: Deploy ingest-document
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -46,4 +49,16 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          supabase functions deploy process-document --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --no-verify-jwt
+          supabase functions deploy process-document --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: Deploy connect-drive
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions deploy connect-drive --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: Deploy generate-system-prompt
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions deploy generate-system-prompt --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
