@@ -28,3 +28,29 @@ secret = "env(GOOGLE_CLIENT_SECRET)"
 
 [edge_runtime]
 enabled = true
+
+# =============================================================================
+# Verify-JWT por função — explícito (defesa em profundidade)
+# =============================================================================
+# Default do Supabase é true, mas declarar aqui evita que um deploy futuro
+# com --no-verify-jwt deixe alguma função aberta acidentalmente.
+#
+# process-document precisa de verify_jwt = true porque aceita 2 fluxos de auth:
+#   - Bearer SERVICE_ROLE_KEY (chamada interna do ingest-document)
+#   - JWT do user dono do job
+# A escolha entre os 2 é feita por authorizeProcessDocument() — o JWT é
+# obrigatório (verify_jwt=true só rejeita request sem header Authorization).
+#
+# Origem: auditoria 2026-05-26 (Agente 3 — Segurança, achado S-11).
+
+[functions.ingest-document]
+verify_jwt = true
+
+[functions.process-document]
+verify_jwt = true
+
+[functions.connect-drive]
+verify_jwt = true
+
+[functions.generate-system-prompt]
+verify_jwt = true
