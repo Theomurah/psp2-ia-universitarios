@@ -364,7 +364,7 @@ async function runPipeline(jobId: string): Promise<void> {
       const judge = await validateJudge(parseResult.texto, synth.result.markdown);
       judgeScore = judge.score > 0 ? judge.score : semantic.score;
       await logEvent('judge', judge.passed ? 'success' : 'warning', {
-        message: judge.comment ?? judge.warnings.join('; ') ?? judge.errors.join('; '),
+        message: judge.comment || judge.warnings.join('; ') || judge.errors.join('; ') || null,
       });
     }
 
