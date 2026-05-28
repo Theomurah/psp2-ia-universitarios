@@ -76,10 +76,8 @@ npm run dev
 ## Git flow
 
 - `main` — produção, sempre estável
-- `dev` — integração contínua entre features
 - `feature/{descrição-curta}` — uma branch por tarefa
-- PR de `feature/*` → `dev` (1 review mínimo)
-- PR de `dev` → `main` ao final de cada sprint
+- PR de `feature/*` → `main` (1 review mínimo)
 
 **Commits:** Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`).
 
