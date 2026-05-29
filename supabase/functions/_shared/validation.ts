@@ -204,7 +204,7 @@ export async function validateJudge(
 
   try {
     const res = await callLLMWithRetry({
-      model: getModelConfig().judge,
+      model: (await getModelConfig()).judge,
       messages: [
         { role: 'system', content: JUDGE_SYSTEM },
         { role: 'user', content: userMsg },

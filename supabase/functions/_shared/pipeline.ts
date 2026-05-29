@@ -71,7 +71,7 @@ export async function classify(
 
   const t0 = Date.now();
   const res = await callLLMWithRetry({
-    model: getModelConfig().classify,
+    model: (await getModelConfig()).classify,
     messages: [
       { role: 'system', content: `${system}\n\n${SANDBOX_INSTRUCTION}` },
       { role: 'user', content: user },
@@ -131,7 +131,7 @@ export async function synthesize(
 
   const t0 = Date.now();
   const res = await callLLMWithRetry({
-    model: getModelConfig().synthesize,
+    model: (await getModelConfig()).synthesize,
     messages: [
       { role: 'system', content: `${system}\n\n${SANDBOX_INSTRUCTION}` },
       { role: 'user', content: sandboxUserInput(input.texto_bruto) },
@@ -181,7 +181,7 @@ export async function compress(
   onRetry?: OnRetryCallback,
 ): Promise<{ result: CompressionResult; usage: { tokens_input: number; tokens_output: number; cost_usd: number; model: string; duration_ms: number } }> {
   const system = renderPrompt(SYSTEM_PROMPT_COMPRESS, { modo: input.modo });
-  const mc = getModelConfig();
+  const mc = await getModelConfig();
   const model = input.modo === 'compacta' ? mc.compress_compact : mc.compress_cola;
   const formulas_input = countFormulas(input.markdown_sintetizado);
 

@@ -6,49 +6,74 @@
  * em background via EdgeRuntime.waitUntil() — sem pg_cron.
  *
  * O frontend recebe 202 imediatamente e escuta o job via Realtime.
+ *
+ * Hardening:
+ * - JWT obrigatório do usuário (RLS aplicada na auth client)
+ * - Validação Zod estrita do body
+ * - Path do storage obrigatoriamente igual ao user.id
+ * - Rate limit por usuário (20 uploads/minuto)
+ * - Erros nunca vazam stack/SQL — só códigos canônicos
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { corsHeaders, handleCorsPrefligh } from '../_shared/cors.ts';
+import { handleCorsPrefligh } from '../_shared/cors.ts';
 import { createAuthClient, createServiceClient } from '../_shared/supabase-client.ts';
+import {
+  jsonResponse,
+  errorResponse,
+  requireContentType,
+  requireMaxPayload,
+  parseJsonBody,
+} from '../_shared/http.ts';
+import { checkRateLimit, clientFingerprint } from '../_shared/rate-limit.ts';
 import { UploadRequestSchema } from '../../../packages/shared/src/schemas.ts';
 
 declare const EdgeRuntime: {
   waitUntil(promise: Promise<unknown>): void;
 };
 
+const MAX_BODY_BYTES = 4 * 1024; // metadata only
+
 serve(async (req) => {
   const cors = handleCorsPrefligh(req);
   if (cors) return cors;
 
   try {
+    // Guards rápidos antes de qualquer trabalho
+    const ctErr = requireContentType(req, 'application/json');
+    if (ctErr) return ctErr;
+    const sizeErr = requireMaxPayload(req, MAX_BODY_BYTES);
+    if (sizeErr) return sizeErr;
+
     // 1) Autenticação via JWT do usuário
     const authClient = createAuthClient(req);
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return errorResponse(req, 'unauthorized', 401);
     }
 
-    // 2) Validação do body
-    const body = await req.json();
+    // 2) Rate limit por usuário (20 uploads/minuto)
+    const fp = clientFingerprint(req, user.id);
+    const rl = checkRateLimit(`ingest:${fp}`, { max: 20, windowSec: 60 });
+    if (!rl.ok) {
+      return errorResponse(req, 'rate_limited', 429);
+    }
+
+    // 3) Body parsing + validação Zod
+    const [body, parseErr] = await parseJsonBody(req);
+    if (parseErr) return parseErr;
     const parsed = UploadRequestSchema.safeParse(body);
     if (!parsed.success) {
-      return new Response(JSON.stringify({ error: 'invalid_body', details: parsed.error.format() }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return errorResponse(req, 'invalid_body', 400);
     }
     const { filename_original, format, size_bytes, storage_path } = parsed.data;
 
-    // 3) Verifica que o storage_path pertence ao próprio usuário
+    // 4) Verifica que o storage_path pertence ao próprio usuário
     if (!storage_path.startsWith(`${user.id}/`)) {
-      return new Response(JSON.stringify({ error: 'forbidden_path' }), {
-        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return errorResponse(req, 'forbidden_path', 403);
     }
 
-    // 4) Cria documento + job em transação (service role para escrever)
+    // 5) Cria documento + job em transação (service role para escrever)
     const service = createServiceClient();
 
     const { data: doc, error: docError } = await service
@@ -62,7 +87,10 @@ serve(async (req) => {
       })
       .select()
       .single();
-    if (docError) throw docError;
+    if (docError || !doc) {
+      console.error('ingest-document insert documents:', docError);
+      return errorResponse(req, 'internal_error', 500);
+    }
 
     const { data: job, error: jobError } = await service
       .from('jobs')
@@ -74,11 +102,12 @@ serve(async (req) => {
       })
       .select()
       .single();
-    if (jobError) throw jobError;
+    if (jobError || !job) {
+      console.error('ingest-document insert jobs:', jobError);
+      return errorResponse(req, 'internal_error', 500);
+    }
 
-    // 5) Dispara processamento em background — frontend recebe 202 já
-    // Aqui chamamos a outra Edge Function via HTTP (fire-and-forget).
-    // process-document vai usar EdgeRuntime.waitUntil internamente.
+    // 6) Dispara processamento em background — frontend recebe 202 já
     const processUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/process-document`;
     EdgeRuntime.waitUntil(
       fetch(processUrl, {
@@ -91,19 +120,13 @@ serve(async (req) => {
       }).catch((err) => console.error('Falha ao disparar process-document:', err)),
     );
 
-    return new Response(
-      JSON.stringify({
-        job_id: job.id,
-        document_id: doc.id,
-        status: 'pending',
-      }),
-      { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    );
+    return jsonResponse(req, {
+      job_id: job.id,
+      document_id: doc.id,
+      status: 'pending',
+    }, 202);
   } catch (err) {
     console.error('ingest-document erro:', err);
-    return new Response(
-      JSON.stringify({ error: 'internal_error', message: (err as Error).message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    );
+    return errorResponse(req, 'internal_error', 500);
   }
 });
