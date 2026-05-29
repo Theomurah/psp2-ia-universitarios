@@ -87,6 +87,100 @@ A whitelist canônica de chaves sensíveis vive em `supabase/functions/_shared/l
 
 ---
 
+## Estilo de UI / Design System
+
+> Origem: incidente 2026-05-27 — primeira versão do `/admin` foi feita com
+> sidebar escura, paleta indigo (`#4f46e5`) e classes próprias (`admin-table`,
+> `admin-card`, `admin-layout`). Resultado: visualmente desconectado do resto
+> do app — "feio, bagunçado, fugindo do estilo". Regras abaixo evitam reincidência.
+
+### Paleta — sempre via CSS vars
+
+O app é tematizado com a identidade visual UnB. **Cores hard-coded são proibidas**
+em componentes/CSS novos. Os tokens vivem em `apps/web/src/index.css` no `:root`.
+
+| Token                    | Cor       | Uso                                       |
+|--------------------------|-----------|--------------------------------------------|
+| `--primary`              | `#005923` | Verde UnB. Botões primary, links, hover.   |
+| `--primary-soft`         | `#e6f4ec` | Fundo de NavLink ativo, hover em tabs.     |
+| `--secondary`            | `#003366` | Azul UnB. Apenas em destaques.             |
+| `--accent`               | `#FFB81C` | Amarelo do escudo UnB (focus, accent).     |
+| `--success` `--error`    | `#1F8A4C` / `#B91C1C` | Feedback.                        |
+| `--warn`                 | `#B85C00` | Avisos (tom laranja escuro).               |
+| `--bg`                   | `#f5f7f6` | Fundo da página.                           |
+| `--bg-elevated`          | `#ffffff` | Cards, inputs, header de tabela.           |
+| `--bg-muted`             | `#f0f2f0` | Sparkline cards, tabs container.           |
+| `--border` `--border-strong` | `#d9e0db` / `#b9c4bc` | Linhas, separadores.        |
+| `--text` `--text-muted`  | `#0f1f15` / `#5a6b60` | Tipografia.                      |
+
+**Layout:** `--radius-sm: 6px`, `--radius: 10px`, `--radius-lg: 16px`.
+**Sombras:** `--shadow-sm / --shadow / --shadow-lg`.
+**Topbar height:** `--topbar-height: 64px`.
+
+### Classes reutilizáveis — use ESTAS, não invente novas
+
+| Classe                          | Para que serve                                          |
+|---------------------------------|----------------------------------------------------------|
+| `.container`                    | Wrapper de página (`max-width: 1080px` + padding).       |
+| `.dashboard-header`             | Header: `<h1>` à esquerda, ações/badges à direita.       |
+| `.metric-card` / `.metrics-cards` | Cards de KPI com label/value/foot.                    |
+| `.metric-bars` (`.metric-bar-label/track/fill/count`) | Barras horizontais.            |
+| `.atividade-table` / `.atividade-table-wrapper` | Tabela padrão (hover, sticky thead). |
+| `.cell-mono` `.cell-filename` `.cell-materia` `.cell-truncate` `.cell-message` | Variantes de célula. |
+| `.badge` + `.tone-success/warn/error/info` | Pills de status.                          |
+| `.empty`                        | Estado vazio (dashed border, italic).                    |
+| `.full-page-loader` + `.spinner` | Loader centralizado.                                    |
+| `.card`                         | Container neutro (white + border + radius + shadow-sm).  |
+| `.field` / `.field > span`      | Form field com label.                                    |
+| `.prompts-toolbar`              | Barra: search + select + filtros.                        |
+| `.prompts-filter`               | Grupo de botões filtro (com `.active`).                  |
+| `.view-toggle` / `.tabs` / `.admin-subnav` | Sub-navegação dentro de uma página.           |
+| `button.primary` / `button.ghost` / `button.danger` / `button.link` / `button.icon-only` | Variantes de botão. |
+| `.realtime-pill` + `.dot`       | Pill animada de status conectado.                        |
+| `.hint` / `.muted`              | Texto secundário (`color: var(--text-muted)`).           |
+
+### Regras de UI (proibições e padrões)
+
+1. **Nunca criar sidebar escura** nem paleta paralela (indigo, slate puro, etc).
+   O `/admin` é seção normal: mesma topbar, mesma paleta UnB.
+2. **Nunca esconder a topbar** em rota autenticada. Lista de rotas standalone
+   está em `STANDALONE_ROUTES` no `App.tsx` (`/login`, `/onboarding`,
+   `/privacidade`, `/termos`). Adicionar a essa lista exige justificativa.
+3. **Sempre usar `.container`** como wrapper externo de uma página.
+4. **Sempre usar `<header className="dashboard-header"><h1>...</h1><p className="hint">...</p></header>`** no topo de cada página.
+5. **Sub-navegação dentro de uma seção:** use `.view-toggle`, `.tabs` ou
+   `.admin-subnav`. **NÃO** criar sidebar nova.
+6. **Tabelas:** sempre `.atividade-table` dentro de `.atividade-table-wrapper`.
+   Não definir tabelas com estilo próprio (`admin-table` foi anti-padrão).
+7. **Botões primários:** `<button className="primary">`. Outros: `ghost`, `danger`,
+   `link`, ou sem classe (default outline).
+8. **Cores em SVG/charts:** use `var(--primary)`, `var(--success)`, etc — **nunca
+   hex direto**. Strings `'#4f46e5'` em `style={{ color: ... }}` são proibidas.
+9. **Cards de seção:** `.card` (com `padding: 1.5rem`). Para tabelas, o wrapper
+   `.atividade-table-wrapper` já tem visual de card.
+10. **Estado loading:** `<div className="full-page-loader"><span className="spinner"/>...</div>` — nunca um spinner solto sem container.
+11. **Empty state:** `<div className="empty">texto</div>` — não um `<p>vazio</p>` solto.
+
+### Guards de rota — gotchas
+
+- **`RequireAuth`**: espera `useAuth().loading=false`; sem session redireciona
+  pra `/login`; com `requireOnboarding=true` checa profile completo.
+- **`RequireAdmin`**: compõe sobre `RequireAuth`. Consulta `public.is_admin()` via
+  React Query. **Não usar `isLoading` do React Query como gate** — com
+  `enabled: false` ele retorna `false` (não `true`), e o `data` fica `undefined`.
+  Tratar undefined como false dá redirect prematuro → bug "só entra no double
+  click" (incidente 2026-05-27). Sempre checar `data === undefined` pra
+  distinguir "ainda não sei" de "sei que é não-admin".
+
+### Acessibilidade
+
+- `*:focus-visible` já tem outline amarelo UnB — não sobrescrever.
+- Inputs herdam `--primary` no focus + `box-shadow: 0 0 0 3px var(--primary-soft)`.
+- Tabelas com `<th>` sticky no scroll vertical (já no `.atividade-table`).
+- Botões icon-only sempre com `aria-label`.
+
+---
+
 ## Pipeline de testes mínimo antes de PR
 
 ```bash

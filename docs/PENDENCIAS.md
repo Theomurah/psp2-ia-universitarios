@@ -102,42 +102,87 @@ Lista viva do que ainda precisa ser feito pra fechar cada Sprint. Atualizada sem
 
 ---
 
-## ⚠️ AÇÃO NECESSÁRIA — Aplicar migrations
+## ✅ Migrations — sincronizadas via MCP (27/05/2026)
 
-Antes de subir as Edge Functions novas no Supabase, aplicar **4 migrations**:
+Auditoria feita via MCP Supabase em `bthwkwgdbtrkixajvddi` (projeto `psp2-ia-universitarios`, sa-east-1, Postgres 17.6, status ACTIVE_HEALTHY).
 
-```bash
-supabase link --project-ref <seu-project-ref>   # 1x só, se ainda não tiver
-supabase db push                                # aplica 0003, 0004, 0005, 0006
-```
+**Estado real após sincronização:**
 
-| Migration | O que faz |
-|---|---|
-| `0003_add_curso_horarios.sql` | Pendente desde 14/05/2026 — coluna `profiles.curso` |
-| `0004_drive_oauth.sql` | `profiles.google_access_token`, `google_token_expires_at`, `drive_connected_at` |
-| `0005_seed_prompt_library.sql` | 8 linhas oficiais em `prompt_library` (idempotente — pode re-rodar) |
-| `0006_security_hardening.sql` (**novo 26/05**) | **Hardening de RLS + LGPD**: recria todas as policies com `(select auth.uid())`, `TO authenticated`, `WITH CHECK` explícito · `SET search_path = ''` nas SECURITY DEFINER · nova tabela `user_consents` · RPC `export_user_data()` e `delete_my_account()` |
-| `0007_archive_documents.sql` (**novo 26/05**) | **Arquivamento de documentos**: coluna `documents.archived_at` + index parcial. Habilita soft delete reversível via "Arquivar" no Dashboard. |
+| Migration | Status remoto | Notas |
+|---|---|---|
+| `0001_initial_schema` | ✅ aplicada | base do schema |
+| `0002_storage_bucket` | ✅ aplicada | bucket `documents` privado, 50 MiB |
+| `0003_add_curso_horarios` | ✅ aplicada | coluna `profiles.curso` |
+| `0004_drive_oauth` | ✅ aplicada | tokens Google + `drive_connected_at` |
+| `0005_seed_prompt_library` | ✅ aplicada (via SQL Editor) | tabela tem **20 rows** oficiais |
+| `0006_security_hardening` | ✅ aplicada | RLS hardening, `user_consents`, `delete_my_account()`, `export_user_data()` |
+| `0007_schema_cleanup` | ✅ aplicada | CHECK em `jobs.progress_percent`, índice em `documents.processed_at`, comments |
+| `0008_admin_role` | ✅ aplicada | coluna `profiles.role` + admin policies |
+| `0009_admin_panel` | ✅ aplicada | tabela `admin_audit_log` + funções de métrica |
+| `0010_admin_hardening_and_metrics` | ✅ aplicada | `app_settings` + funções de admin endurecidas |
+| `0011_advisor_fixes` | ✅ aplicada (era só remota) | índice em `feedback.job_id` + policies de `prompt_library` consolidadas. **Arquivo agora também no repo** (capturado via MCP) |
+| `0012_archive_documents` | ✅ aplicada (**27/05** via MCP) | `documents.archived_at` + index parcial — habilita soft delete no Dashboard |
 
-> Sem `0004` aplicada: `connect-drive` salva só refresh_token + drive_root_folder_id (com warning).
-> Sem `0005` aplicada: tela `/prompts` carrega vazia.
-> Sem `0006` aplicada: signup falha ao tentar registrar consentimento (tabela inexistente) — `recordConsent` cai em catch silencioso, mas signup completa; exportar/deletar dados em Settings retornam erro de RPC.
+**Conflito resolvido:** o arquivo `0007_archive_documents.sql` (criado em 26/05 às 20:08) colidia com `0007_schema_cleanup.sql` (do mesmo dia, 14:23). Foi renomeado para `0012_archive_documents.sql` e aplicado via `mcp__supabase__apply_migration` em 27/05.
+
+### Advisors atuais (rodar antes de submeter pra avaliação)
+
+`mcp__supabase__get_advisors` reporta:
+
+- **11 funções SECURITY DEFINER expostas a `authenticated`** (WARN) — todas as `admin_*` validam `is_admin()` internamente, então é seguro; `delete_my_account()` e `export_user_data()` são por design (LGPD). Não exige ação, mas vale documentar no artigo.
+- **`auth_leaked_password_protection` desativado** (WARN) — habilitar em Dashboard → Auth → Settings (HaveIBeenPwned). 1 clique.
 
 ## ⚠️ AÇÃO NECESSÁRIA — Configurar `ALLOWED_ORIGINS` em produção
 
-As Edge Functions agora exigem origem na whitelist (CORS strict). Definir secret:
+## ⚠️ AÇÃO NECESSÁRIA — Configurar secrets em produção
 
 ```bash
-supabase secrets set ALLOWED_ORIGINS="https://seu-app.vercel.app,https://outro-dominio.com"
+supabase secrets set ALLOWED_ORIGINS="https://seu-app.vercel.app"
+supabase secrets set OPENROUTER_API_KEY="sk-or-v1-..."
+supabase secrets set GOOGLE_CLIENT_ID="..." GOOGLE_CLIENT_SECRET="..."
 ```
 
-Sem essa env, fallback é `http://localhost:5173` (dev OK, mas browsers de produção bloqueiam).
+| Secret | O que quebra sem ela |
+|---|---|
+| `ALLOWED_ORIGINS` | CORS strict bloqueia front em produção (fallback é `localhost:5173`) |
+| `OPENROUTER_API_KEY` | Pipeline LLM falha em todos os estágios |
+| `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` | Refresh de token Drive falha → uploads abortados com warning (pipeline segue) |
 
-### Opções de aplicação (mesmo procedimento de 0003)
+## 📁 Google Drive — código completo (27/05/2026)
 
-**A — CLI linkada à nuvem (recomendado):** `supabase db push`
-**B — SQL Editor (manual):** copiar/colar conteúdo dos `.sql` em `https://app.supabase.com/project/<ref>/sql/new`
-**C — Local (precisa de Docker):** `supabase start && supabase migration up`
+A integração com Drive está **100% pronta no fluxo desenhado**, em `supabase/functions/_shared/drive/`:
+
+| Arquivo | Responsabilidade | Notas |
+|---|---|---|
+| `types.ts` | `DriveError`, `DriveAuthExpiredError`, tipos compartilhados | — |
+| `retry.ts` | **NOVO** — `withRetry` + `isRetryable` (5xx/429/network) | backoff exponencial com jitter e cap; respeita as regras oficiais do Google |
+| `oauth.ts` | `refreshAccessToken` + `ensureFreshToken` | envolto em retry |
+| `folders.ts` | `findFolder`, `createFolder`, `findOrCreateFolder`, `ensureFolderPath`, `ensureRootFolder` | escape correto da search query (`\\` + `\'`); envolto em retry |
+| `upload.ts` | `uploadFile` + `uploadMarkdown` | **roteamento automático**: < 5 MiB → Multipart; ≥ 5 MiB → Resumable (POST init + PUT bytes). Envolto em retry. |
+| `about.ts` | **NOVO** — `getAbout` (email, nome, foto, quota) | útil pra Settings ("conectado como X — Y/Z GB"). Envolto em retry. |
+| `index.ts` | Barrel | reexporta tudo |
+
+**Cobertura de testes Vitest** (todos mockando `globalThis.fetch`):
+
+- `drive.retry.test.ts` — **NOVO** (12 testes) — classificação de erros e backoff determinístico
+- `drive.about.test.ts` — **NOVO** (5 testes) — parsing de quota, fallback de limit null, 401
+- `drive.oauth.test.ts` — 7 testes — refresh, 400 (invalid_grant), 500 com retry
+- `drive.folders.test.ts` — 14 testes — find, create, findOrCreate, ensureFolderPath, escape de aspas
+- `drive.upload.test.ts` — 8 testes — multipart, Uint8Array, **resumable em 2 fases (init + PUT)**, 401, 404 sessão expirada
+
+**Pipeline (`process-document/index.ts`) já usa:**
+- `ensureFreshToken` antes do upload (refresh automático)
+- `ensureFolderPath(rootId, [semestre, materia])` pra criar hierarquia
+- `uploadMarkdown` pra mandar o sintetizado
+- `DriveAuthExpiredError` é tratado: não derruba pipeline, marca warning
+
+**`getAbout` está pronto mas não exposto** — sugestão: criar Edge Function `drive-status` que chama `getAbout` + retorna `{ email, storage_used, storage_limit, drive_root_folder_id }` pra exibir em Configurações. Estimativa: 30 min.
+
+### Opções de aplicação de migrations (caso surjam novas)
+
+**A — MCP Supabase (recomendado, foi assim que sincronizamos):** `mcp__supabase__apply_migration`
+**B — CLI linkada à nuvem:** `supabase db push` (atualmente o CLI local não tem permissão na org `zudopbffdahzblovewzr` — o Theo precisa logar com a conta certa)
+**C — SQL Editor (manual):** copiar/colar `.sql` em `https://app.supabase.com/project/bthwkwgdbtrkixajvddi/sql/new`
 
 ---
 
