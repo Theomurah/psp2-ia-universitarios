@@ -4,7 +4,7 @@
     "outDir": "dist",
     "types": ["vite/client"],
     "paths": {
-      "@psp2/shared": ["../../packages/shared/src/types"]
+      "@psp2/shared": ["../../packages/shared/src/index.ts"]
     }
   },
   "include": ["src"]
