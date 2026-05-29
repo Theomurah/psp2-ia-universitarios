@@ -7,15 +7,26 @@ import type { JobRecord, DocumentRecord, JobStatus } from '@psp2/shared';
 
 export type JobWithDoc = JobRecord & { documents: DocumentRecord };
 
-export function useJobs() {
+export type JobsView = 'active' | 'archived';
+
+export function useJobs(opts: { view?: JobsView } = {}) {
+  const view: JobsView = opts.view ?? 'active';
   return useQuery({
-    queryKey: ['jobs'],
+    queryKey: ['jobs', view],
     queryFn: async (): Promise<JobWithDoc[]> => {
-      const { data, error } = await supabase
+      // !inner garante que o filtro `documents.archived_at` se aplique
+      // (sem inner join, a coluna da relação não é filtrável no PostgREST).
+      let q = supabase
         .from('jobs')
-        .select('*, documents(*)')
+        .select('*, documents!inner(*)')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
+      if (view === 'active') {
+        q = q.is('documents.archived_at', null);
+      } else {
+        q = q.not('documents.archived_at', 'is', null);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data as JobWithDoc[];
     },
