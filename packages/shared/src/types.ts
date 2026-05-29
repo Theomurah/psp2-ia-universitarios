@@ -4,6 +4,7 @@
  */
 
 import type {
+  FeedbackTopic,
   FormatoDocumento,
   JobStatus,
   PipelineStep,
@@ -137,8 +138,35 @@ export interface PromptLibraryItem {
   created_at: string;
 }
 
-// (UserSystemPrompt, Feedback, FeedbackTopic movidos para types.internal.ts —
-//  schema-first, consumo planejado em H7/H10. Auditoria 2026-05-26 / A4.)
+// =============================================================
+// Feedback (H10) — avaliação do aluno sobre uma síntese ou o produto
+// =============================================================
+export interface Feedback {
+  id: string;
+  user_id: string;
+  job_id: string | null;                // null = feedback geral (não atrelado a job)
+  rating: number;                       // 1-5 (check constraint no banco)
+  topic: FeedbackTopic;
+  comments: string | null;
+  created_at: string;
+}
+
+// =============================================================
+// User system prompt (H7) — prompt personalizado do aluno, versionado
+// =============================================================
+export interface UserSystemPrompt {
+  id: string;
+  user_id: string;
+  prompt_text: string;
+  semester_snapshot: string;            // "2026.1" vigente quando criado
+  source_documents: string[];           // IDs dos docs que serviram de base
+  version: number;
+  is_active: boolean;                   // só uma versão ativa por usuário
+  created_at: string;
+}
+
+// (GeneratedContent segue em types.internal.ts — schema-first, lido hoje só
+//  pelo MarkdownPreview com shape inline. Auditoria 2026-05-26 / A4.)
 
 // =============================================================
 // LLM call I/O

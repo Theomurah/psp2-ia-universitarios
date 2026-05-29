@@ -73,6 +73,20 @@ export const PIPELINE_STEPS = [
 export type PipelineStep = (typeof PIPELINE_STEPS)[number];
 
 // =============================================================
+// Feedback (H10) — tópico do feedback do aluno sobre uma síntese
+// =============================================================
+export const FEEDBACK_TOPICS = ['sintese', 'nomenclatura', 'drive', 'prompts', 'outro'] as const;
+export type FeedbackTopic = (typeof FEEDBACK_TOPICS)[number];
+
+export const FEEDBACK_TOPIC_LABELS: Record<FeedbackTopic, string> = {
+  sintese: 'Síntese',
+  nomenclatura: 'Nomenclatura',
+  drive: 'Google Drive',
+  prompts: 'Prompts',
+  outro: 'Outro',
+};
+
+// =============================================================
 // Nomenclatura (T07)
 // =============================================================
 export const NOMENCLATURA = {

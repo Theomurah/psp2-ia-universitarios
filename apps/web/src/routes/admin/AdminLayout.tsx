@@ -22,6 +22,9 @@ export default function AdminLayout() {
         <NavLink to="/admin/modelos" className={({ isActive }) => (isActive ? 'active' : '')}>
           Modelos
         </NavLink>
+        <NavLink to="/admin/feedback" className={({ isActive }) => (isActive ? 'active' : '')}>
+          Feedback
+        </NavLink>
       </nav>
 
       <Outlet />

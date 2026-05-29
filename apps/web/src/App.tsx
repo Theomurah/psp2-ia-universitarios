@@ -13,6 +13,7 @@ import AdminLayout from './routes/admin/AdminLayout';
 import AdminDashboard from './routes/admin/AdminDashboard';
 import AdminPrompts from './routes/admin/AdminPrompts';
 import AdminModelos from './routes/admin/AdminModelos';
+import AdminFeedback from './routes/admin/AdminFeedback';
 import RequireAuth from './components/RequireAuth';
 import RequireAdmin from './components/RequireAdmin';
 import TopbarUser from './components/TopbarUser';
@@ -120,6 +121,7 @@ export default function App() {
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="prompts" element={<AdminPrompts />} />
               <Route path="modelos" element={<AdminModelos />} />
+              <Route path="feedback" element={<AdminFeedback />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

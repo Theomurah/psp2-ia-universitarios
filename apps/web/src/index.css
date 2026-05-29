@@ -2568,3 +2568,77 @@ button.danger:disabled {
   .grade-wrapper { min-width: 560px; }
 }
 
+/* =============================================================
+   Feedback widget (H10) — avaliação no preview + agregado no /admin
+   ============================================================= */
+.feedback-widget {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.feedback-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.feedback-stars { display: flex; gap: 0.25rem; }
+.feedback-star {
+  width: auto;
+  background: none;
+  border: none;
+  padding: 0.1rem;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--border-strong);
+  transition: color 0.12s, transform 0.12s;
+}
+.feedback-star:hover { transform: scale(1.12); }
+.feedback-star.on { color: var(--accent); }
+.feedback-done { gap: 0.35rem; }
+.feedback-done-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--success);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* =============================================================
+   Prompt de estudo personalizado (H7) — seção em /settings
+   ============================================================= */
+.system-prompt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.system-prompt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.system-prompt-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  max-height: 9rem;
+  overflow: hidden;
+}
+.system-prompt-text.expanded { max-height: none; }
+

@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import UploadDropzone from '../components/UploadDropzone';
 import JobCard from '../components/JobCard';
 import MarkdownPreview from '../components/MarkdownPreview';
+import FeedbackWidget from '../components/FeedbackWidget';
 import MetricsCards from '../components/MetricsCards';
 import ActivityFeed from '../components/ActivityFeed';
 import { useJobs, useJobsRealtime, type JobsView, type JobWithDoc } from '../hooks/useJobs';
@@ -336,7 +337,12 @@ export default function DashboardPage() {
 // =============================================================
 function PreviewBody({ job }: { job: JobWithDoc }) {
   if (job.status === 'completed' || job.status === 'completed_with_warning') {
-    return <MarkdownPreview documentId={job.document_id} />;
+    return (
+      <>
+        <MarkdownPreview documentId={job.document_id} />
+        <FeedbackWidget jobId={job.id} />
+      </>
+    );
   }
 
   if (job.status === 'failed') {
