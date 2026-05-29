@@ -67,9 +67,15 @@ export type Horario = z.infer<typeof HorarioSchema>;
 
 export const MateriaSchema = z.object({
   code: z.string().regex(/^[A-Z][A-Z0-9_]+$/, 'Use UPPERCASE com underscore. Ex: FISICA3'),
-  nome: z.string().min(2).max(60),
+  nome: z.string().min(2).max(80),
   profs: z.array(z.string()).optional(),
   horarios: z.array(HorarioSchema).optional(),
+  /** Dados opcionais importados do atestado SIGAA */
+  turma: z.string().max(10).optional(),
+  professor: z.string().max(120).optional(),
+  local: z.string().max(80).optional(),
+  /** Código original do SIGAA (ex: "26N34") para preservar o source-of-truth */
+  codigo_horario_sigaa: z.string().regex(/^[1-7]+[MTN][1-9]+$/).optional(),
 });
 
 export const ProfileFormSchema = z.object({

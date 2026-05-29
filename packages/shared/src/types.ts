@@ -24,6 +24,11 @@ export interface MateriaPerfil {
   nome: string;        // "Física 3"
   profs?: string[];    // ["Fábio Lima"]
   horarios?: HorarioAula[];
+  /** Campos opcionais — importados do atestado SIGAA. */
+  turma?: string;                    // "01"
+  professor?: string;                // "FABIO MENEZES DE SOUZA LIMA"
+  local?: string;                    // "ICC AT 117"
+  codigo_horario_sigaa?: string;     // "26N34"
 }
 
 export interface Profile {
@@ -64,6 +69,9 @@ export interface DocumentRecord {
 
   created_at: string;
   processed_at: string | null;
+
+  // Soft delete (migration 0007) — null = ativo, timestamp = arquivado
+  archived_at: string | null;
 }
 
 // =============================================================
