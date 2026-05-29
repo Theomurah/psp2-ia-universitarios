@@ -25,6 +25,9 @@ import {
 import { recordConsent, TOS_VERSION, PRIVACY_VERSION } from '../lib/consents';
 import { useToast } from '../components/Toast';
 import UnbLogo from '../components/UnbLogo';
+import { createLogger, emailDomain } from '../lib/log';
+
+const log = createLogger('login');
 
 type Mode = 'signin' | 'signup' | 'magic';
 
@@ -94,19 +97,22 @@ export default function LoginPage() {
   const strength = mode === 'signup' ? passwordStrength(pw) : null;
 
   const onSubmit = async (data: FormValues) => {
+    const domain = emailDomain(data.email);
     try {
       if (mode === 'signin') {
         await signInWithPassword(data.email, data.password);
+        log.info('signin_succeeded', { email_domain: domain });
         toast.success('Bem-vindo de volta!', 'Login realizado com sucesso.');
         navigate(from, { replace: true });
       } else if (mode === 'signup') {
         const result = await signUpWithPassword(data.email, data.password, data.full_name);
+        log.info('signup_succeeded', { email_domain: domain, needs_confirmation: !result.session });
         // Registra consentimento (LGPD) — best-effort, não bloqueia signup
         if (result.user) {
           recordConsent(result.user.id, [
             { type: 'tos', version: TOS_VERSION },
             { type: 'privacy', version: PRIVACY_VERSION },
-          ]).catch((e) => console.warn('[consent] falha ao registrar:', e));
+          ]).catch((e) => log.warn('consent_record_failed', { user_id: result.user?.id, ...log.fromError(e) }));
         }
         if (result.session) {
           toast.success('Conta criada!', 'Vamos configurar seu perfil em alguns passos.');
@@ -120,10 +126,12 @@ export default function LoginPage() {
         }
       } else {
         await signInWithMagicLink(data.email);
+        log.info('magic_link_sent', { email_domain: domain });
         setMagicSent(true);
         toast.info('Link enviado', `Verifique a caixa de entrada de ${data.email}.`);
       }
     } catch (err) {
+      log.warn('auth_failed', { mode, email_domain: domain, ...log.fromError(err) });
       const { title, description } = describeAuthError(err as Error);
       toast.error(title, description);
     }

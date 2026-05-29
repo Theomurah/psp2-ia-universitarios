@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { createLogger } from '../lib/log';
 import { useToast } from '../components/Toast';
 import type { JobRecord, DocumentRecord, JobStatus } from '@psp2/shared';
+
+const log = createLogger('jobs-realtime');
 
 export type JobWithDoc = JobRecord & { documents: DocumentRecord };
 
@@ -72,21 +75,27 @@ export function useJobsRealtime() {
             filter: `user_id=eq.${user.id}`,
           },
           (payload: RealtimePostgresChangesPayload<JobRecord>) => {
-            qc.invalidateQueries({ queryKey: ['jobs'] });
+            // Envolve em try/catch: antes um payload malformado matava a
+            // subscription silenciosamente (catch mudo — achado do mapa de logs).
+            try {
+              qc.invalidateQueries({ queryKey: ['jobs'] });
 
-            // Toast em transições significativas
-            if (payload.eventType === 'UPDATE') {
-              const oldRow = payload.old as Partial<JobRecord>;
-              const newRow = payload.new as JobRecord;
-              const prev = lastStatusRef.current.get(newRow.id) ?? oldRow.status;
-              const next = newRow.status;
-              if (prev !== next) {
-                cacheStatus(lastStatusRef.current, newRow.id, next);
-                notifyStatusChange(toast, newRow, next);
+              // Toast em transições significativas
+              if (payload.eventType === 'UPDATE') {
+                const oldRow = payload.old as Partial<JobRecord>;
+                const newRow = payload.new as JobRecord;
+                const prev = lastStatusRef.current.get(newRow.id) ?? oldRow.status;
+                const next = newRow.status;
+                if (prev !== next) {
+                  cacheStatus(lastStatusRef.current, newRow.id, next);
+                  notifyStatusChange(toast, newRow, next);
+                }
+              } else if (payload.eventType === 'INSERT') {
+                const newRow = payload.new as JobRecord;
+                cacheStatus(lastStatusRef.current, newRow.id, newRow.status);
               }
-            } else if (payload.eventType === 'INSERT') {
-              const newRow = payload.new as JobRecord;
-              cacheStatus(lastStatusRef.current, newRow.id, newRow.status);
+            } catch (err) {
+              log.error('realtime_payload_error', { event_type: payload.eventType, ...log.fromError(err) });
             }
           },
         )
@@ -94,12 +103,16 @@ export function useJobsRealtime() {
           const isConnected = status === 'SUBSCRIBED';
           setConnected(isConnected);
           if (isConnected) {
+            log.info('realtime_subscribed', { user_id: user.id });
             if (hadConnectionRef.current) {
               toast.success('Conexão restabelecida', 'Atualizações em tempo real reativadas.');
             }
             hadConnectionRef.current = true;
-          } else if (hadConnectionRef.current && status === 'CHANNEL_ERROR') {
-            toast.warning('Sem atualização em tempo real', 'Tentando reconectar…');
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            log.warn('realtime_disconnected', { channel_status: status });
+            if (hadConnectionRef.current && status === 'CHANNEL_ERROR') {
+              toast.warning('Sem atualização em tempo real', 'Tentando reconectar…');
+            }
           }
         });
     })();

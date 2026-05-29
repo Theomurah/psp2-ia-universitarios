@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { createLogger } from '../lib/log';
+
+const log = createLogger('auth');
 
 export interface AuthState {
   loading: boolean;
@@ -30,7 +33,9 @@ export function useAuth(): AuthState {
     });
 
     // Listener de mudanças
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Loga o tipo de evento + se há usuário (nunca email/token).
+      log.info('auth_state_change', { event, has_session: !!session, user_id: session?.user?.id });
       setState({
         loading: false,
         session,

@@ -10,6 +10,9 @@ import { useMemo, useState } from 'react';
 import type { PromptLibraryItem, PromptCategory } from '@psp2/shared';
 import { useToast } from './Toast';
 import { useIncrementPromptUsage } from '../hooks/usePromptLibrary';
+import { createLogger } from '../lib/log';
+
+const log = createLogger('prompt-card');
 
 interface Props {
   prompt: PromptLibraryItem;
@@ -39,7 +42,8 @@ export default function PromptCard({ prompt }: Props) {
       await navigator.clipboard.writeText(rendered);
       toast.success('Prompt copiado', 'Cole em qualquer IA (ChatGPT, Claude, Gemini).');
       inc.mutate(prompt.id);
-    } catch {
+    } catch (err) {
+      log.warn('clipboard_copy_failed', { prompt_id: prompt.id, ...log.fromError(err) });
       toast.error('Não foi possível copiar', 'Selecione manualmente e copie.');
     }
   };

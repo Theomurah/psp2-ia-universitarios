@@ -1,7 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { createLogger } from '../lib/log';
 import type { Profile, MateriaPerfil } from '@psp2/shared';
+
+const log = createLogger('profile');
 
 export function useProfile() {
   return useQuery({
@@ -73,7 +76,8 @@ export function useUpdateProfile() {
       // Fallback: se a coluna `curso` não existe (migration 0003 não aplicada),
       // salva o resto e sobe erro tipado pro caller decidir como avisar o usuário.
       if (isMissingCursoColumn(error)) {
-        console.warn('[useUpdateProfile] coluna "curso" não existe — salvando sem ela.', error);
+        // Sanitizado: nunca o PostgrestError cru (details/hint podem vazar PII).
+        log.warn('curso_column_missing_fallback', { migration: '0003', ...log.fromError(error) });
         const { full_name, semestre_atual, materias } = fullPayload;
         const { error: retryError } = await supabase
           .from('profiles')

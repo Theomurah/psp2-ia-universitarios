@@ -11,7 +11,10 @@ import { useCallback, useState } from 'react';
 import { useDropzone, type FileRejection } from 'react-dropzone';
 import { uploadDocument } from '../lib/upload';
 import { useToast } from './Toast';
+import { createLogger } from '../lib/log';
 import type { UploadResponse } from '@psp2/shared';
+
+const log = createLogger('upload-dropzone');
 
 interface Props {
   onUploaded?: (response: UploadResponse, file: File) => void;
@@ -30,7 +33,6 @@ export default function UploadDropzone({ onUploaded }: Props) {
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     for (const file of acceptedFiles) {
       setUploading(true);
-      const tag = `upload-${file.name}`;
       toast.info('Enviando arquivo', `${file.name} (${fmtBytes(file.size)})`);
       try {
         const res = await uploadDocument(file);
@@ -39,7 +41,8 @@ export default function UploadDropzone({ onUploaded }: Props) {
       } catch (err) {
         const msg = (err as Error).message ?? 'Falha desconhecida.';
         toast.error('Falha no upload', msg);
-        console.error(tag, err);
+        // Não loga file.name (PII) — só metadados seguros.
+        log.error('upload_failed', { size_bytes: file.size, mime_type: file.type, ...log.fromError(err) });
       } finally {
         setUploading(false);
       }

@@ -9,6 +9,9 @@
 import { useMutation } from '@tanstack/react-query';
 import type { SigaaAtestado } from '@psp2/shared';
 import { supabase } from '../lib/supabase';
+import { createLogger } from '../lib/log';
+
+const log = createLogger('import-sigaa');
 
 const FUNCTIONS_URL = (() => {
   const base = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -61,21 +64,26 @@ export function useImportSigaa() {
         //  - CORS bloqueado por origin não permitida
         // Reportamos como EdgeFunctionMissing pra dar ação ao usuário.
         if ((err as Error).message?.toLowerCase().includes('fetch')) {
+          log.warn('fetch_failed_assume_missing', log.fromError(err));
           throw new EdgeFunctionMissingError();
         }
+        log.error('fetch_error', log.fromError(err));
         throw err;
       }
 
       // 404 explícito também = função não existe
       if (res.status === 404) {
+        log.warn('edge_function_missing', { http_status: 404 });
         throw new EdgeFunctionMissingError();
       }
 
       const json = await res.json().catch(() => ({} as { ok?: boolean; message?: string }));
       if (!res.ok || !json.ok) {
+        log.warn('parse_rejected', { http_status: res.status });
         const msg = (json as { message?: string }).message ?? `Erro ${res.status}.`;
         throw new Error(msg);
       }
+      log.info('sigaa_imported', { materias_count: (json as { parsed: SigaaAtestado }).parsed.materias.length });
       return (json as { parsed: SigaaAtestado }).parsed;
     },
   });

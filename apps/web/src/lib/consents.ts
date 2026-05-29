@@ -6,6 +6,9 @@
  */
 
 import { supabase } from './supabase';
+import { createLogger } from './log';
+
+const log = createLogger('consents');
 
 export const TOS_VERSION = '2026.05.26';
 export const PRIVACY_VERSION = '2026.05.26';
@@ -53,9 +56,16 @@ export async function exportUserData(): Promise<unknown> {
  */
 export async function deleteMyAccount(): Promise<void> {
   const { error } = await supabase.rpc('delete_my_account');
-  if (error) throw error;
+  if (error) {
+    log.error('delete_account_failed', log.fromError(error));
+    throw error;
+  }
+  log.info('account_deleted');
   // Limpa sessão local — o usuário já não existe.
-  await supabase.auth.signOut().catch(() => {/* sessão pode já ter sido invalidada */});
+  await supabase.auth.signOut().catch((err: unknown) => {
+    // Sessão pode já ter sido invalidada pelo cascade — não é erro fatal.
+    log.debug('post_delete_signout_noop', log.fromError(err));
+  });
 }
 
 /**

@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { createLogger } from '../lib/log';
 import { useAuth } from './useAuth';
+
+const log = createLogger('is-admin');
 
 /**
  * Consulta `public.is_admin()` no banco e responde em 3 estados:
@@ -19,7 +22,7 @@ export function useIsAdmin() {
     queryFn: async (): Promise<boolean> => {
       const { data, error } = await supabase.rpc('is_admin');
       if (error) {
-        console.warn('is_admin RPC failed', { message: error.message, code: error.code });
+        log.warn('rpc_failed', { rpc_name: 'is_admin', ...log.fromError(error) });
         return false;
       }
       return data === true;

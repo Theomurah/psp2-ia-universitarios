@@ -10,6 +10,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, signOut } from '../hooks/useAuth';
 import { useToast } from './Toast';
+import { createLogger } from '../lib/log';
+
+const log = createLogger('topbar-user');
 
 function initialFrom(email: string | null | undefined, name?: string | null) {
   if (name && name.trim()) return name.trim()[0].toUpperCase();
@@ -33,9 +36,11 @@ export default function TopbarUser() {
     setBusy(true);
     try {
       await signOut();
+      log.info('signout_succeeded', { user_id: user.id });
       toast.success('Você saiu', 'Até a próxima!');
       navigate('/login', { replace: true });
     } catch (err) {
+      log.error('signout_failed', { user_id: user.id, ...log.fromError(err) });
       const msg = (err as Error).message ?? 'Não foi possível sair.';
       toast.error('Erro ao sair', msg);
     } finally {

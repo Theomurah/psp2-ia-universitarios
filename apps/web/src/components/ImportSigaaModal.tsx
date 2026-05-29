@@ -14,6 +14,9 @@ import type { SigaaAtestado } from '@psp2/shared';
 import { useImportSigaa, EdgeFunctionMissingError } from '../hooks/useImportSigaa';
 import { useToast } from './Toast';
 import { colorForMateria } from '../lib/materiaColor';
+import { createLogger } from '../lib/log';
+
+const log = createLogger('import-sigaa-modal');
 
 interface Props {
   open: boolean;
@@ -68,10 +71,12 @@ export default function ImportSigaaModal({ open, onClose, onConfirm }: Props) {
       }
     } catch (err) {
       if (err instanceof EdgeFunctionMissingError) {
+        log.warn('edge_function_missing');
         setMissingFunction(true);
         setStage('upload');
         return;
       }
+      log.error('sigaa_import_failed', log.fromError(err));
       toast.error('Falha ao importar atestado', (err as Error).message);
       setStage('upload');
     }

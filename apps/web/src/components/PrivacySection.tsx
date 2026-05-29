@@ -10,6 +10,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { exportUserData, deleteMyAccount, downloadAsFile } from '../lib/consents';
 import { useToast } from './Toast';
+import { createLogger } from '../lib/log';
+
+const log = createLogger('privacy');
 
 export default function PrivacySection() {
   const toast = useToast();
@@ -20,13 +23,16 @@ export default function PrivacySection() {
 
   const handleExport = async () => {
     setExporting(true);
+    const t0 = Date.now();
     try {
       const data = await exportUserData();
       const json = JSON.stringify(data, null, 2);
       const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       downloadAsFile(json, `psp2-meus-dados-${stamp}.json`);
+      log.info('data_exported', { duration_ms: Date.now() - t0, bytes: json.length });
       toast.success('Dados exportados', 'O download começou.');
     } catch (err) {
+      log.error('data_export_failed', log.fromError(err));
       toast.error('Falha ao exportar', (err as Error).message);
     } finally {
       setExporting(false);
@@ -39,11 +45,13 @@ export default function PrivacySection() {
       return;
     }
     setDeleting(true);
+    log.info('account_delete_requested');
     try {
       await deleteMyAccount();
       toast.info('Conta excluída', 'Todos os seus dados foram removidos.');
       window.location.href = '/login';
     } catch (err) {
+      log.error('account_delete_failed', log.fromError(err));
       toast.error('Falha ao excluir conta', (err as Error).message);
       setDeleting(false);
     }

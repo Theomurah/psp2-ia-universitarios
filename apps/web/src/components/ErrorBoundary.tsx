@@ -6,6 +6,9 @@
  */
 
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { createLogger } from '../lib/log';
+
+const log = createLogger('error-boundary');
 
 interface Props {
   children: ReactNode;
@@ -26,10 +29,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     // Log estruturado pro DevTools / Supabase Studio quando entrar coletor remoto.
-    console.error('[ErrorBoundary]', {
+    log.error('react_render_error', {
       message: error.message,
       stack: error.stack?.split('\n').slice(0, 5).join('\n'),
-      componentStack: info.componentStack?.split('\n').slice(0, 5).join('\n'),
+      component_stack: info.componentStack?.split('\n').slice(0, 5).join('\n'),
     });
   }
 

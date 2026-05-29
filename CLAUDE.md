@@ -35,17 +35,35 @@ log.error('insert_failed', log.fromError(err));
 O helper emite JSON 1-linha-por-evento (`{ ts, level, fn, evt, ...fields }`),
 filtrável no Supabase Studio via `jq '.evt'`.
 
+**Separação dev/prod:** o nível mínimo emitido é controlado pela env var
+`LOG_LEVEL` (`debug | info | warn | error`, default `info`). `debug` é
+suprimido em produção:
+
+```bash
+supabase secrets set LOG_LEVEL=info    # produção
+supabase secrets set LOG_LEVEL=debug   # branch de desenvolvimento
+```
+
 ### Frontend
 
-`console.error`/`warn` direto, mas **sempre** sanitize objetos de erro antes:
+**Sempre** use o helper `apps/web/src/lib/log.ts` (espelho do `_shared/log.ts`,
+com a mesma whitelist de redação). Não use `console.*` cru — vaza
+`details`/`hint` de `PostgrestError`.
 
 ```ts
-// ❌ ruim — pode vazar details/hint do PostgrestError
-console.error('falha:', err);
+import { createLogger, emailDomain } from '../lib/log';
+const log = createLogger('upload');
 
-// ✅ bom
-console.error('falha:', { message: (err as Error).message, code: (err as any).code });
+log.info('upload_started', { user_id, format, size_bytes });
+log.warn('rate_limited', { user_id });
+log.error('upload_failed', log.fromError(err));   // fromError já sanitiza
 ```
+
+Separação dev/prod é **build-time** via Vite: `vite dev` → nível `debug` (loga
+tudo); `vite build` → nível `warn` (só warn + error; `info`/`debug` viram
+no-op). Override pontual em prod sem redeploy:
+`localStorage.setItem('psp2:log_level', 'debug')` e recarregue. Para email,
+logue só `emailDomain(email)` — nunca o endereço completo.
 
 ### O que **nunca** logar
 

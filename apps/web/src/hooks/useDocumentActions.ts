@@ -11,6 +11,9 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { createLogger } from '../lib/log';
+
+const log = createLogger('document-actions');
 
 interface SetArchivedArgs {
   documentId: string;
@@ -55,7 +58,8 @@ export function useDeleteDocument() {
       // user é dono, então o doc deve ir embora mesmo com storage órfão.
       const storageRes = await supabase.storage.from('documents').remove([storagePath]);
       if (storageRes.error) {
-        console.warn('[delete-document] storage remove falhou (seguindo):', storageRes.error.message);
+        // Best-effort: arquivo pode ficar órfão no bucket, mas o doc some da UI.
+        log.warn('storage_remove_failed', { document_id: documentId, ...log.fromError(storageRes.error) });
       }
 
       const { error } = await supabase
