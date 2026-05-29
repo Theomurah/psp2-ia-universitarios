@@ -36,6 +36,12 @@ Thumbs.db
 .idea/
 *.swp
 
+# Config local de agentes IA (settings.local.json, launch.json)
+.claude/
+
+# Exports do banco — contêm PII e conteúdo de aluno (LGPD). NUNCA versionar.
+data/
+
 # Supabase
 .supabase/
 supabase/.temp/
