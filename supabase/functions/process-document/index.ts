@@ -47,6 +47,7 @@ import {
   decideVerdict,
 } from '../_shared/validation.ts';
 import { buildFilenameFinal, buildDriveFolderPath } from '../../../packages/shared/src/schemas.ts';
+import { createLogger } from '../_shared/log.ts';
 import type { PipelineStep } from '../../../packages/shared/src/constants.ts';
 
 declare const EdgeRuntime: {
@@ -54,6 +55,7 @@ declare const EdgeRuntime: {
 };
 
 const MAX_BODY_BYTES = 4 * 1024;
+const log = createLogger('process-document');
 
 // Schema do body — UUID estrito evita que UUIDs malformados quebrem em .eq('id')
 // com erro Postgres 22P02 vazando pelo console.error como 'internal_error'.
@@ -93,7 +95,7 @@ serve(async (req) => {
 
     return jsonResponse(req, { status: 'processing' }, 202);
   } catch (err) {
-    console.error('process-document erro inicial:', err);
+    log.error('init_unhandled', log.fromError(err));
     return errorResponse(req, 'internal_error', 500);
   }
 });
@@ -131,13 +133,15 @@ async function authorizeProcessDocument(
     .eq('id', jobId)
     .maybeSingle();
   if (jobErr) {
-    console.error('authorize: erro lendo job:', jobErr);
+    log.error('authorize_read_job_failed', { job_id: jobId, ...log.fromError(jobErr) });
     return { ok: false, code: 'internal_error', status: 500 };
   }
   if (!job) {
     return { ok: false, code: 'not_found', status: 404 };
   }
   if (job.user_id !== user.id) {
+    // Sinal de segurança: usuário autenticado tentou disparar job de outro.
+    log.warn('authorize_owner_mismatch', { job_id: jobId, requester_id: user.id });
     return { ok: false, code: 'forbidden', status: 403 };
   }
   return { ok: true };
@@ -168,14 +172,16 @@ async function runPipeline(jobId: string): Promise<void> {
     .select('id');
 
   if (claimErr) {
-    console.error('process-document claim:', claimErr);
+    log.error('claim_failed', { job_id: jobId, ...log.fromError(claimErr) });
     return;
   }
   if (!claimed || claimed.length === 0) {
     // Outro worker já claim'ou ou o job não está em pending — sai sem custo.
-    console.warn(`process-document: job ${jobId} já claim'ado por outro worker — pulando.`);
+    log.warn('job_claim_skipped', { job_id: jobId, reason: 'already_claimed_or_not_pending' });
     return;
   }
+
+  log.info('pipeline_started', { job_id: jobId });
 
   // Helpers de telemetria/erro
   // Importante: setStep NUNCA mais sobrescreve started_at (gravado uma vez no claim).
@@ -443,8 +449,9 @@ async function runPipeline(jobId: string): Promise<void> {
 
     // 7) Conclui
     const totalCost = cls.usage.cost_usd + synth.usage.cost_usd + comp.usage.cost_usd;
+    const finalStatus = synthVerdict === 'warning' ? 'completed_with_warning' : 'completed';
     await service.from('jobs').update({
-      status: synthVerdict === 'warning' ? 'completed_with_warning' : 'completed',
+      status: finalStatus,
       current_step: null,
       progress_percent: 100,
       chars_input: parseResult.texto.length,
@@ -457,8 +464,17 @@ async function runPipeline(jobId: string): Promise<void> {
       processed_at: new Date().toISOString(),
     }).eq('id', doc.id);
 
+    log.info('pipeline_completed', {
+      job_id: jobId,
+      status: finalStatus,
+      cost_usd_total: totalCost,
+      chars_input: parseResult.texto.length,
+      chars_synthesis: synth.result.markdown.length,
+      drive_uploaded: !driveResult.skipped && !driveResult.error,
+    });
+
   } catch (err) {
-    console.error('runPipeline erro:', err);
+    log.error('pipeline_failed', { job_id: jobId, ...log.fromError(err) });
     await fail((err as Error).message, 'unknown');
   }
 }
@@ -523,7 +539,10 @@ async function tryUploadToDrive(args: {
     await service.from('profiles').update({
       google_access_token: token.access_token,
       google_token_expires_at: new Date(token.expires_at).toISOString(),
-    }).eq('id', profile.id).catch(() => {/* silencia — migration 0004 pode não estar aplicada */});
+    }).eq('id', profile.id).catch((err: unknown) => {
+      // Não bloqueia o upload — migration 0004 pode não estar aplicada.
+      log.warn('token_persist_failed', { user_id: profile.id, ...log.fromError(err) });
+    });
   }
 
   const t0 = Date.now();

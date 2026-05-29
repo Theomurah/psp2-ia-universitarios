@@ -34,9 +34,11 @@ import {
   parseJsonBody,
 } from '../_shared/http.ts';
 import { checkRateLimit, clientFingerprint } from '../_shared/rate-limit.ts';
+import { createLogger } from '../_shared/log.ts';
 import { ensureRootFolder, DriveAuthExpiredError, DriveError } from '../_shared/drive/index.ts';
 
 const MAX_BODY_BYTES = 16 * 1024;
+const log = createLogger('connect-drive');
 
 const ConnectDriveSchema = z.object({
   provider_token: z.string().min(20).max(4096),
@@ -64,7 +66,10 @@ serve(async (req) => {
     // 2) Rate limit por usuário (5/min, operação cara que faz round-trip ao Google)
     const fp = clientFingerprint(req, user.id);
     const rl = checkRateLimit(`connect-drive:${fp}`, { max: 5, windowSec: 60 });
-    if (!rl.ok) return errorResponse(req, 'rate_limited', 429);
+    if (!rl.ok) {
+      log.warn('rate_limited', { user_id: user.id, endpoint: 'connect-drive', window_sec: 60 });
+      return errorResponse(req, 'rate_limited', 429);
+    }
 
     // 3) Lê + valida body
     const [body, parseErr] = await parseJsonBody(req);
@@ -83,10 +88,11 @@ serve(async (req) => {
       rootFolderId = root.id;
     } catch (err) {
       if (err instanceof DriveAuthExpiredError) {
+        log.warn('drive_auth_expired', { user_id: user.id });
         return errorResponse(req, 'drive_auth_expired', 401);
       }
       if (err instanceof DriveError) {
-        console.error('connect-drive Drive API error:', err);
+        log.error('drive_api_error', { user_id: user.id, drive_status: err.status, ...log.fromError(err) });
         return errorResponse(req, 'drive_api_error', 502);
       }
       throw err;
@@ -119,25 +125,28 @@ serve(async (req) => {
           })
           .eq('id', user.id);
         if (fallbackError) {
-          console.error('connect-drive fallback update:', fallbackError);
+          log.error('profile_fallback_update_failed', { user_id: user.id, ...log.fromError(fallbackError) });
           return errorResponse(req, 'internal_error', 500);
         }
+        log.warn('drive_connected_migration_pending', { user_id: user.id, has_root_folder: !!rootFolderId });
         return jsonResponse(req, {
           ok: true,
           drive_root_folder_id: rootFolderId,
           warning: 'migration_pending',
         });
       }
-      console.error('connect-drive update profile:', updateError);
+      log.error('profile_update_failed', { user_id: user.id, ...log.fromError(updateError) });
       return errorResponse(req, 'internal_error', 500);
     }
+
+    log.info('drive_connected', { user_id: user.id, has_root_folder: !!rootFolderId, expires_in });
 
     return jsonResponse(req, {
       ok: true,
       drive_root_folder_id: rootFolderId,
     });
   } catch (err) {
-    console.error('connect-drive erro:', err);
+    log.error('unhandled', log.fromError(err));
     return errorResponse(req, 'internal_error', 500);
   }
 });

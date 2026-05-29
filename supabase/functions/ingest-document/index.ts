@@ -26,6 +26,7 @@ import {
   parseJsonBody,
 } from '../_shared/http.ts';
 import { checkRateLimit, clientFingerprint } from '../_shared/rate-limit.ts';
+import { createLogger } from '../_shared/log.ts';
 import { UploadRequestSchema } from '../../../packages/shared/src/schemas.ts';
 
 declare const EdgeRuntime: {
@@ -33,6 +34,7 @@ declare const EdgeRuntime: {
 };
 
 const MAX_BODY_BYTES = 4 * 1024; // metadata only
+const log = createLogger('ingest-document');
 
 serve(async (req) => {
   const cors = handleCorsPrefligh(req);
@@ -56,6 +58,7 @@ serve(async (req) => {
     const fp = clientFingerprint(req, user.id);
     const rl = checkRateLimit(`ingest:${fp}`, { max: 20, windowSec: 60 });
     if (!rl.ok) {
+      log.warn('rate_limited', { user_id: user.id, endpoint: 'ingest', window_sec: 60 });
       return errorResponse(req, 'rate_limited', 429);
     }
 
@@ -64,14 +67,19 @@ serve(async (req) => {
     if (parseErr) return parseErr;
     const parsed = UploadRequestSchema.safeParse(body);
     if (!parsed.success) {
+      log.warn('invalid_body', { user_id: user.id });
       return errorResponse(req, 'invalid_body', 400);
     }
     const { filename_original, format, size_bytes, storage_path } = parsed.data;
 
     // 4) Verifica que o storage_path pertence ao próprio usuário
     if (!storage_path.startsWith(`${user.id}/`)) {
+      // Não logamos o path (pode conter nome de arquivo = PII) — só o sinal.
+      log.warn('forbidden_path', { user_id: user.id, format });
       return errorResponse(req, 'forbidden_path', 403);
     }
+
+    log.info('request_received', { user_id: user.id, format, size_bytes });
 
     // 5) Cria documento + job em transação (service role para escrever)
     const service = createServiceClient();
@@ -88,7 +96,7 @@ serve(async (req) => {
       .select()
       .single();
     if (docError || !doc) {
-      console.error('ingest-document insert documents:', docError);
+      log.error('insert_documents_failed', { user_id: user.id, ...log.fromError(docError) });
       return errorResponse(req, 'internal_error', 500);
     }
 
@@ -103,9 +111,11 @@ serve(async (req) => {
       .select()
       .single();
     if (jobError || !job) {
-      console.error('ingest-document insert jobs:', jobError);
+      log.error('insert_jobs_failed', { user_id: user.id, document_id: doc.id, ...log.fromError(jobError) });
       return errorResponse(req, 'internal_error', 500);
     }
+
+    log.info('job_enqueued', { job_id: job.id, document_id: doc.id, user_id: user.id, format, size_bytes });
 
     // 6) Dispara processamento em background — frontend recebe 202 já
     const processUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/process-document`;
@@ -117,7 +127,15 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ job_id: job.id }),
-      }).catch((err) => console.error('Falha ao disparar process-document:', err)),
+      })
+        .then((res) => {
+          if (!res.ok) {
+            log.error('process_dispatch_non_2xx', { job_id: job.id, http_status: res.status });
+          } else {
+            log.debug('process_dispatched', { job_id: job.id });
+          }
+        })
+        .catch((err) => log.error('process_dispatch_failed', { job_id: job.id, ...log.fromError(err) })),
     );
 
     return jsonResponse(req, {
@@ -126,7 +144,7 @@ serve(async (req) => {
       status: 'pending',
     }, 202);
   } catch (err) {
-    console.error('ingest-document erro:', err);
+    log.error('unhandled', log.fromError(err));
     return errorResponse(req, 'internal_error', 500);
   }
 });

@@ -8,17 +8,24 @@
  *   - A3: logs em texto livre → JSON estruturado filtrável no Supabase Studio
  *   - A6 (base): `redactError` evita vazamento de PII / detalhes do Postgres
  *
+ * Separação dev/prod: o nível mínimo emitido é controlado pela env var
+ * `LOG_LEVEL` (debug | info | warn | error). Default `info`. Em produção
+ * deixe `info`; em branch/dev rode com `debug` pra ver o detalhe fino.
+ *   supabase secrets set LOG_LEVEL=info    # produção
+ *   supabase secrets set LOG_LEVEL=debug   # branch de desenvolvimento
+ *
  * Uso típico em uma Edge Function:
  *
  *   import { createLogger } from '../_shared/log.ts';
  *   const log = createLogger('ingest-document');
  *
+ *   log.debug('detail', { step });          // só sai com LOG_LEVEL=debug
  *   log.info('received', { user_id: user.id, format });
  *   log.error('insert_failed', log.fromError(err));
  *   log.warn('rate_limited', { user_id: user.id });
  */
 
-type LogLevel = 'info' | 'warn' | 'error';
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface LogFields {
   [key: string]: unknown;
@@ -105,13 +112,29 @@ export function fromError(err: unknown): LogFields {
 }
 
 interface Logger {
+  debug(evt: string, fields?: LogFields): void;
   info(evt: string, fields?: LogFields): void;
   warn(evt: string, fields?: LogFields): void;
   error(evt: string, fields?: LogFields): void;
   fromError(err: unknown): LogFields;
 }
 
+/** Ordem de severidade — usada pra filtrar pelo threshold de LOG_LEVEL. */
+const LEVEL_ORDER: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+
+/**
+ * Lê o nível mínimo a emitir de `LOG_LEVEL` (default `info`).
+ * Lido a cada emit (custo desprezível) pra permitir override em runtime/teste.
+ */
+function thresholdLevel(): number {
+  // deno-lint-ignore no-explicit-any
+  const denoEnv = (globalThis as any).Deno?.env;
+  const raw = (denoEnv?.get?.('LOG_LEVEL') ?? 'info').toLowerCase();
+  return LEVEL_ORDER[raw as LogLevel] ?? LEVEL_ORDER.info;
+}
+
 function emit(level: LogLevel, fn: string, evt: string, fields: LogFields = {}): void {
+  if (LEVEL_ORDER[level] < thresholdLevel()) return;
   const record = {
     ts: new Date().toISOString(),
     level,
@@ -134,6 +157,7 @@ function emit(level: LogLevel, fn: string, evt: string, fields: LogFields = {}):
  */
 export function createLogger(fn: string): Logger {
   return {
+    debug: (evt, fields) => emit('debug', fn, evt, fields),
     info: (evt, fields) => emit('info', fn, evt, fields),
     warn: (evt, fields) => emit('warn', fn, evt, fields),
     error: (evt, fields) => emit('error', fn, evt, fields),

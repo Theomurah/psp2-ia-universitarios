@@ -20,6 +20,9 @@
 
 import { VisionProvider } from './types.ts';
 import { OpenRouterVisionProvider } from './openrouter-vision.ts';
+import { createLogger } from '../log.ts';
+
+const log = createLogger('vision');
 
 export * from './types.ts';
 export { OpenRouterVisionProvider };
@@ -62,7 +65,7 @@ function resolveModel(input: string): string {
   // Se já parece "fornecedor/modelo" passa direto
   if (input.includes('/')) return input;
   // Senão, assume que o aluno digitou um alias e cai pro default
-  console.warn(`VISION_MODEL "${input}" não reconhecido — usando default (Claude Sonnet 4.6).`);
+  log.warn('vision_model_unrecognized', { input, fallback: 'anthropic/claude-sonnet-4.6' });
   return 'anthropic/claude-sonnet-4.6';
 }
 

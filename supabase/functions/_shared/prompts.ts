@@ -146,3 +146,14 @@ export function renderPrompt(template: string, vars: Record<string, string | nul
     return v == null ? '' : String(v);
   });
 }
+
+// =============================================================
+// System prompt personalizado do aluno (H7)
+// =============================================================
+// Prepende o system prompt personalizado (gerado por generate-system-prompt)
+// ao system base da síntese. Quando não há prompt ativo, devolve o base
+// inalterado — garante zero mudança de comportamento para quem não optou.
+export function applyPersonalizedSystem(base: string, personalized?: string | null): string {
+  const p = personalized?.trim();
+  return p ? `${p}\n\n${base}` : base;
+}

@@ -19,6 +19,7 @@ import { handleCorsPrefligh } from '../_shared/cors.ts';
 import { createAuthClient, createServiceClient } from '../_shared/supabase-client.ts';
 import { jsonResponse, errorResponse } from '../_shared/http.ts';
 import { checkRateLimit, clientFingerprint } from '../_shared/rate-limit.ts';
+import { createLogger } from '../_shared/log.ts';
 import {
   renderSystemPrompt,
   buildSemesterSnapshot,
@@ -26,6 +27,7 @@ import {
 } from '../_shared/system-prompt.ts';
 
 const RECENT_DOCS_LIMIT = 30;
+const log = createLogger('generate-system-prompt');
 
 serve(async (req) => {
   const cors = handleCorsPrefligh(req);
@@ -42,7 +44,10 @@ serve(async (req) => {
     // 2) Rate limit
     const fp = clientFingerprint(req, user.id);
     const rl = checkRateLimit(`gen-prompt:${fp}`, { max: 10, windowSec: 60 });
-    if (!rl.ok) return errorResponse(req, 'rate_limited', 429);
+    if (!rl.ok) {
+      log.warn('rate_limited', { user_id: user.id, endpoint: 'gen-prompt', window_sec: 60 });
+      return errorResponse(req, 'rate_limited', 429);
+    }
 
     // Parâmetro opcional: force=true → regenera mesmo se snapshot bater
     const url = new URL(req.url);
@@ -69,7 +74,7 @@ serve(async (req) => {
       .order('processed_at', { ascending: false })
       .limit(RECENT_DOCS_LIMIT);
     if (docsErr) {
-      console.error('generate-system-prompt list docs:', docsErr);
+      log.error('list_docs_failed', { user_id: user.id, ...log.fromError(docsErr) });
       return errorResponse(req, 'internal_error', 500);
     }
 
@@ -97,6 +102,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!force && existing && existing.semester_snapshot === snapshot) {
+      log.info('prompt_reused', { user_id: user.id, version: existing.version, doc_count: docs?.length ?? 0 });
       return jsonResponse(req, {
         ok: true,
         regenerated: false,
@@ -138,9 +144,16 @@ serve(async (req) => {
       .select()
       .single();
     if (insertErr || !inserted) {
-      console.error('generate-system-prompt insert:', insertErr);
+      log.error('insert_failed', { user_id: user.id, version: nextVersion, ...log.fromError(insertErr) });
       return errorResponse(req, 'internal_error', 500);
     }
+
+    log.info('prompt_regenerated', {
+      user_id: user.id,
+      version: nextVersion,
+      forced: force,
+      source_doc_count: sourceDocIds.length,
+    });
 
     return jsonResponse(req, {
       ok: true,
@@ -148,7 +161,7 @@ serve(async (req) => {
       prompt: inserted,
     });
   } catch (err) {
-    console.error('generate-system-prompt erro:', err);
+    log.error('unhandled', log.fromError(err));
     return errorResponse(req, 'internal_error', 500);
   }
 });

@@ -11,6 +11,9 @@
  */
 
 import { MODELS as DEFAULTS } from '../../../packages/shared/src/constants.ts';
+import { createLogger } from './log.ts';
+
+const log = createLogger('models');
 
 export interface ModelConfig {
   classify: string;
@@ -48,7 +51,7 @@ async function fetchAppSettings(): Promise<Partial<ModelConfig>> {
       },
     );
     if (!res.ok) {
-      console.warn('app_settings fetch non-200', { status: res.status });
+      log.warn('app_settings_fetch_non_200', { http_status: res.status });
       return {};
     }
     const rows = await res.json() as Array<{ key: string; value: unknown }>;
@@ -61,7 +64,7 @@ async function fetchAppSettings(): Promise<Partial<ModelConfig>> {
     }
     return out;
   } catch (err) {
-    console.warn('app_settings fetch failed', { message: (err as Error).message });
+    log.warn('app_settings_fetch_failed', log.fromError(err));
     return {};
   }
 }

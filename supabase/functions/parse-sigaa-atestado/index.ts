@@ -27,10 +27,12 @@ import {
   requireMaxPayload,
 } from '../_shared/http.ts';
 import { checkRateLimit, clientFingerprint } from '../_shared/rate-limit.ts';
+import { createLogger } from '../_shared/log.ts';
 import { parsePdf } from '../_shared/parsers.ts';
 import { parseSigaaAtestado } from '../../../packages/shared/src/sigaa.ts';
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024; // 5 MiB
+const log = createLogger('parse-sigaa-atestado');
 
 serve(async (req) => {
   const cors = handleCorsPrefligh(req);
@@ -50,7 +52,10 @@ serve(async (req) => {
     // 2) Rate limit
     const fp = clientFingerprint(req, user.id);
     const rl = checkRateLimit(`parse-sigaa:${fp}`, { max: 10, windowSec: 60 });
-    if (!rl.ok) return errorResponse(req, 'rate_limited', 429);
+    if (!rl.ok) {
+      log.warn('rate_limited', { user_id: user.id, endpoint: 'parse-sigaa', window_sec: 60 });
+      return errorResponse(req, 'rate_limited', 429);
+    }
 
     // 3) Lê o arquivo do multipart
     const ct = req.headers.get('content-type') ?? '';
@@ -87,12 +92,13 @@ serve(async (req) => {
       const parsed = await parsePdf(buffer);
       texto = parsed.texto;
     } catch (err) {
-      console.error('parse-sigaa-atestado parsePdf:', err);
+      log.warn('pdf_parse_failed', { user_id: user.id, size_bytes: file.size, ...log.fromError(err) });
       return errorResponse(req, 'invalid_body', 422,
         'Não foi possível ler o PDF. Confira se é o atestado de matrícula do SIGAA.');
     }
 
     if (texto.length < 100) {
+      log.warn('pdf_empty_or_scanned', { user_id: user.id, chars: texto.length });
       return errorResponse(req, 'invalid_body', 422,
         'O PDF parece vazio ou só imagens (sem texto extraível).');
     }
@@ -101,13 +107,19 @@ serve(async (req) => {
     const parsed = parseSigaaAtestado(texto);
 
     if (parsed.materias.length === 0) {
+      log.warn('no_materias_found', { user_id: user.id, chars: texto.length });
       return errorResponse(req, 'invalid_body', 422,
         'Não consegui identificar matérias no PDF. Confira se é o "Atestado de Matrícula" do SIGAA → Discente → Ensino.');
     }
 
+    log.info('sigaa_parsed', {
+      user_id: user.id,
+      materias_count: parsed.materias.length,
+      warnings_count: parsed.warnings?.length ?? 0,
+    });
     return jsonResponse(req, { ok: true, parsed });
   } catch (err) {
-    console.error('parse-sigaa-atestado erro:', err);
+    log.error('unhandled', log.fromError(err));
     return errorResponse(req, 'internal_error', 500);
   }
 });

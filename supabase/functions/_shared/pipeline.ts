@@ -11,6 +11,7 @@ import {
   SYSTEM_PROMPT_SYNTHESIZE,
   SYSTEM_PROMPT_COMPRESS,
   renderPrompt,
+  applyPersonalizedSystem,
 } from './prompts.ts';
 
 // =============================================================
@@ -111,6 +112,8 @@ export interface SynthesizeInput {
     titulo: string;
     semestre: string;
     fonte: string | null;
+    /** System prompt personalizado do aluno (H7). Ausente = síntese padrão. */
+    user_system_prompt?: string | null;
   };
 }
 
@@ -129,11 +132,12 @@ export async function synthesize(
     fonte: input.contexto.fonte ?? 'Material original',
   });
 
+  const systemBase = `${system}\n\n${SANDBOX_INSTRUCTION}`;
   const t0 = Date.now();
   const res = await callLLMWithRetry({
     model: (await getModelConfig()).synthesize,
     messages: [
-      { role: 'system', content: `${system}\n\n${SANDBOX_INSTRUCTION}` },
+      { role: 'system', content: applyPersonalizedSystem(systemBase, input.contexto.user_system_prompt) },
       { role: 'user', content: sandboxUserInput(input.texto_bruto) },
     ],
     temperature: 0.2,
