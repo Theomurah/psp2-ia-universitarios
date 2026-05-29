@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   renderPrompt,
+  applyPersonalizedSystem,
   SYSTEM_PROMPT_CLASSIFY,
   SYSTEM_PROMPT_SYNTHESIZE,
   SYSTEM_PROMPT_COMPRESS,
@@ -33,6 +34,27 @@ describe('renderPrompt', () => {
   it('aceita números convertidos pra string', () => {
     const out = renderPrompt('{{n}} itens', { n: '42' });
     expect(out).toBe('42 itens');
+  });
+});
+
+describe('applyPersonalizedSystem (H7)', () => {
+  const base = 'SISTEMA BASE\n\n<<DOC>> regras';
+
+  it('devolve o base inalterado quando não há prompt (zero mudança)', () => {
+    expect(applyPersonalizedSystem(base)).toBe(base);
+    expect(applyPersonalizedSystem(base, null)).toBe(base);
+    expect(applyPersonalizedSystem(base, '')).toBe(base);
+    expect(applyPersonalizedSystem(base, '   ')).toBe(base);
+  });
+
+  it('prepende o prompt personalizado antes do base', () => {
+    const out = applyPersonalizedSystem(base, 'Você é tutor de Física 3.');
+    expect(out).toBe(`Você é tutor de Física 3.\n\n${base}`);
+    expect(out.indexOf('Física 3')).toBeLessThan(out.indexOf('SISTEMA BASE'));
+  });
+
+  it('faz trim do prompt personalizado', () => {
+    expect(applyPersonalizedSystem(base, '  Contexto.  ')).toBe(`Contexto.\n\n${base}`);
   });
 });
 

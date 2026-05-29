@@ -305,6 +305,16 @@ async function runPipeline(jobId: string): Promise<void> {
     // 3) SYNTHESIZE — automaticamente em chunks pra docs grandes (T24)
     await setStep('synthesize', 45);
     const materiaNome = profile.materias?.find((m: { code: string }) => m.code === cls.result.materia_code)?.nome ?? cls.result.materia_code;
+
+    // System prompt personalizado do aluno (H7) — opt-in: só existe se o aluno
+    // gerou em /configuracoes (generate-system-prompt). Ausente → síntese padrão.
+    const { data: activePrompt } = await service
+      .from('user_system_prompts')
+      .select('prompt_text')
+      .eq('user_id', job.user_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
     const synthInput = {
       texto_bruto: parseResult.texto,
       contexto: {
@@ -316,6 +326,7 @@ async function runPipeline(jobId: string): Promise<void> {
         titulo: cls.result.titulo,
         semestre: profile.semestre_atual ?? '2026.1',
         fonte: null,
+        user_system_prompt: activePrompt?.prompt_text ?? null,
       },
     };
 

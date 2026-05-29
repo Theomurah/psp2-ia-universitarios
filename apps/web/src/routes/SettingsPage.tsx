@@ -14,6 +14,7 @@ import { ProfileFormSchema, type ProfileForm, DIAS_SEMANA } from '@psp2/shared';
 import { useProfile, useUpdateProfile, MissingCursoColumnError } from '../hooks/useProfile';
 import { useToast } from '../components/Toast';
 import PrivacySection from '../components/PrivacySection';
+import SystemPromptSection from '../components/SystemPromptSection';
 
 const DIA_LABEL: Record<string, string> = {
   seg: 'Segunda',
@@ -265,6 +266,8 @@ export default function SettingsPage() {
           {isSubmitting ? 'Salvando…' : 'Salvar alterações'}
         </button>
       </div>
+
+      <SystemPromptSection />
 
       <PrivacySection />
     </form>
