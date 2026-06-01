@@ -48,6 +48,7 @@ import {
 } from '../_shared/validation.ts';
 import { buildFilenameFinal, buildDriveFolderPath } from '../../../packages/shared/src/schemas.ts';
 import { createLogger } from '../_shared/log.ts';
+import { checkRateLimit } from '../_shared/rate-limit.ts';
 import type { PipelineStep } from '../../../packages/shared/src/constants.ts';
 
 declare const EdgeRuntime: {
@@ -90,6 +91,19 @@ serve(async (req) => {
       return errorResponse(req, auth.code, auth.status);
     }
 
+    // Rate limit só para chamadas de usuário (re-disparo manual). As chamadas
+    // internas service_role (ingest → process) são parte do fluxo normal e não
+    // passam por aqui. Reprocessar é caro (pipeline LLM completo): 10/min por
+    // usuário corta loop que queimaria quota OpenRouter.
+    // Origem: auditoria 2026-05-28 (Segurança, achado A1).
+    if (auth.via === 'user') {
+      const rl = checkRateLimit(`process:${auth.userId}`, { max: 10, windowSec: 60 });
+      if (!rl.ok) {
+        log.warn('rate_limited', { user_id: auth.userId, endpoint: 'process-document', window_sec: 60 });
+        return errorResponse(req, 'rate_limited', 429);
+      }
+    }
+
     // Responde 202 já e segue processando em background
     EdgeRuntime.waitUntil(runPipeline(job_id));
 
@@ -106,7 +120,11 @@ serve(async (req) => {
 async function authorizeProcessDocument(
   req: Request,
   jobId: string,
-): Promise<{ ok: true } | { ok: false; code: string; status: number }> {
+): Promise<
+  | { ok: true; via: 'service' }
+  | { ok: true; via: 'user'; userId: string }
+  | { ok: false; code: string; status: number }
+> {
   const authHeader = req.headers.get('Authorization') ?? '';
   if (!authHeader.startsWith('Bearer ')) {
     return { ok: false, code: 'unauthorized', status: 401 };
@@ -116,7 +134,7 @@ async function authorizeProcessDocument(
   // Caso 1: chamada interna com service_role (ingest-document → process-document)
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (serviceKey && token === serviceKey) {
-    return { ok: true };
+    return { ok: true, via: 'service' };
   }
 
   // Caso 2: JWT do usuário — precisa ser dono do job
@@ -144,7 +162,7 @@ async function authorizeProcessDocument(
     log.warn('authorize_owner_mismatch', { job_id: jobId, requester_id: user.id });
     return { ok: false, code: 'forbidden', status: 403 };
   }
-  return { ok: true };
+  return { ok: true, via: 'user', userId: user.id };
 }
 
 // =============================================================
