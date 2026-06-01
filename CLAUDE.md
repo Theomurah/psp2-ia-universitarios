@@ -65,6 +65,15 @@ no-op). Override pontual em prod sem redeploy:
 `localStorage.setItem('psp2:log_level', 'debug')` e recarregue. Para email,
 logue só `emailDomain(email)` — nunca o endereço completo.
 
+**Persistência durável:** além do console, eventos `info+` são gravados de forma
+não-bloqueante na tabela `activity_logs` (migration 0018), com um `request_id`
+de correlação por sessão. O threshold de persistência é **independente** do de
+console — em prod o console mostra só `warn+`, mas `info` (ex: auditoria de
+admin, scope `admin`) continua sendo persistido. RLS: cada um lê os próprios
+logs; admin lê todos via `is_admin()`. Exceção à regra "sem console cru":
+`lib/supabase.ts` usa `console.error` no guard de bootstrap de propósito — se
+importasse o logger criaria ciclo (`log.ts` → `supabase.ts`).
+
 ### O que **nunca** logar
 
 | Categoria                | Exemplos                                                         |
