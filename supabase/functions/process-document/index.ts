@@ -310,6 +310,17 @@ async function runPipeline(jobId: string): Promise<void> {
       return await fail(clsValidation.errors.join('; '), 'classify');
     }
 
+    // Faixa intermediária [review, auto): a classificação passa, mas o job
+    // termina como `needs_review`. Antes esse warning era descartado e o doc
+    // ia como `completed` pro Drive sem nenhum sinal de revisão (achado B1).
+    // Decisão de produto: NÃO pausa o pipeline — completa o trabalho e sobe
+    // pro Drive normalmente, só marca o status final pra revisão humana.
+    // Origem: auditoria 2026-05-28 (Bugs, achado B1).
+    const classificationNeedsReview = clsValidation.warnings.length > 0;
+    if (classificationNeedsReview) {
+      await logEvent('classify', 'warning', { message: clsValidation.warnings.join('; ') });
+    }
+
     // Atualiza doc com a classificação
     await service.from('documents').update({
       materia_code: cls.result.materia_code,
@@ -478,7 +489,14 @@ async function runPipeline(jobId: string): Promise<void> {
 
     // 7) Conclui
     const totalCost = cls.usage.cost_usd + synth.usage.cost_usd + comp.usage.cost_usd;
-    const finalStatus = synthVerdict === 'warning' ? 'completed_with_warning' : 'completed';
+    // needs_review tem prioridade sobre completed_with_warning: classificação
+    // incerta pede olhar humano (qual matéria?), sinal mais forte que um warning
+    // cosmético da síntese.
+    const finalStatus = classificationNeedsReview
+      ? 'needs_review'
+      : synthVerdict === 'warning'
+        ? 'completed_with_warning'
+        : 'completed';
     await service.from('jobs').update({
       status: finalStatus,
       current_step: null,
