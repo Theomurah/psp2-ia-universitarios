@@ -8,7 +8,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../components/Toast';
+import { createLogger } from '../../lib/log';
 import type { PromptLibraryItem, PromptCategory } from '@psp2/shared';
+
+const log = createLogger('admin');
 
 const CATEGORY_LABEL: Record<PromptCategory, string> = {
   estudo: 'Estudo',
@@ -47,9 +50,15 @@ function useUpdatePrompt() {
         .eq('id', input.id);
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
+      // Auditoria: prompt oficial editado afeta todos os alunos.
+      // Logamos id + tamanho do template (não o conteúdo).
+      log.info('prompt_updated', { prompt_id: input.id, template_chars: input.template.length });
       qc.invalidateQueries({ queryKey: ['admin', 'official_prompts'] });
       qc.invalidateQueries({ queryKey: ['prompt_library'] });
+    },
+    onError: (err, input) => {
+      log.error('prompt_update_failed', { prompt_id: input.id, ...log.fromError(err) });
     },
   });
 }
