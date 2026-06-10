@@ -29,7 +29,7 @@ export interface MateriaPerfil {
   turma?: string;                    // "01"
   professor?: string;                // "FABIO MENEZES DE SOUZA LIMA"
   local?: string;                    // "ICC AT 117"
-  codigo_horario_sigaa?: string;     // "26N34"
+  codigo_horario_sigaa?: string;     // "26N34" — multi-turno separa por espaço: "2M34 4T12"
 }
 
 export interface Profile {
@@ -40,8 +40,15 @@ export interface Profile {
   semestre_atual: string | null;        // "2026.1"
   materias: MateriaPerfil[];
   drive_root_folder_id: string | null;
+  drive_connected_at: string | null;    // timestamp da 1ª conexão Drive (0004)
+  is_admin: boolean;                    // role admin (0008), default false
+  is_test: boolean;                     // perfil de seed/teste (0013), default false
   created_at: string;
   updated_at: string;
+  // ATENÇÃO: as colunas google_* (google_refresh_token, google_access_token,
+  // google_token_expires_at) existem no banco mas ficam FORA deste tipo de
+  // propósito — são server-only (Edge Functions via service role) e nunca
+  // devem circular no frontend nem em payloads. Não adicionar aqui.
 }
 
 // =============================================================

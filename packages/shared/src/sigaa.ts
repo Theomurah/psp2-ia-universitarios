@@ -30,13 +30,19 @@ export const UNB_TURNOS: Record<'M' | 'T' | 'N', Record<number, { inicio: string
     4: { inicio: '10:55', fim: '11:50' },
     5: { inicio: '12:00', fim: '12:55' },
   },
+  // Grade oficial UnB do turno Tarde tem 7 slots começando em T1=12:55.
+  // A versão anterior omitia o T1 e deslocava tudo 1 posição (~1h de erro
+  // em toda matéria de tarde). Prova: a TABELA DE HORÁRIOS da fixture real
+  // em __tests__/sigaa.test.ts mostra ENM0128 (35T45) no slot 16:00-16:55.
+  // Auditoria 2026-06-10 (PKG-SHARED-01).
   T: {
-    1: { inicio: '14:00', fim: '14:55' },
-    2: { inicio: '14:55', fim: '15:50' },
-    3: { inicio: '16:00', fim: '16:55' },
-    4: { inicio: '16:55', fim: '17:50' },
-    5: { inicio: '18:00', fim: '18:55' },
-    6: { inicio: '18:55', fim: '19:50' },
+    1: { inicio: '12:55', fim: '13:50' },
+    2: { inicio: '14:00', fim: '14:55' },
+    3: { inicio: '14:55', fim: '15:50' },
+    4: { inicio: '16:00', fim: '16:55' },
+    5: { inicio: '16:55', fim: '17:50' },
+    6: { inicio: '18:00', fim: '18:55' },
+    7: { inicio: '18:55', fim: '19:50' },
   },
   N: {
     1: { inicio: '19:00', fim: '19:50' },
@@ -60,6 +66,7 @@ export interface SigaaMateria {
   turma: string | null;
   professor: string | null;
   local: string | null;
+  /** Código(s) SIGAA originais. Multi-turno vem separado por espaço: "2M34 4T12". */
   codigo_horario_sigaa: string | null;
   horarios: HorarioBloco[];
 }
@@ -130,8 +137,10 @@ const RX_PERIODO_LETIVO = /Per[ií]odo Letivo:\s*(\d{4}\.\d)\s*\(\s*(\d{2}\/\d{2
 // e não há word-boundary entre dígito e letra. Com \b final, nada casava.
 const RX_CODIGO_MATERIA = /\b([A-Z]{2,4}\d{3,4})/g;
 
-// Código de horário SIGAA, com word-boundary
-const RX_CODIGO_HORARIO = /\b([1-7]+[MTN][1-9]+)\b/;
+// Código de horário SIGAA, com word-boundary. Flag /g: uma disciplina pode
+// ter MAIS DE UM código (ex: teoria "2M34" + lab "4T12") — capturamos todos.
+// Auditoria 2026-06-10 (PKG-SHARED-03).
+const RX_CODIGO_HORARIO = /\b([1-7]+[MTN][1-9]+)\b/g;
 
 // Local: depois de "Local:"
 const RX_LOCAL = /Local:\s*([^\n\r]+?)(?=\s*(?:Tipo:|Hor[áa]rio:|$|\n))/i;
@@ -234,13 +243,14 @@ function extractNomeEProfessor(bloco: string, code: string): { nome: string; pro
   for (const linha of linhasAntes) {
     if (/^Tipo:/i.test(linha) || /^Local:/i.test(linha)) break;
     if (/^\d{2,3}$/.test(linha)) continue;                          // turma solta
-    if (/^[1-7]+[MTN][1-9]+(\s*\(.*)?$/.test(linha)) continue;      // horário solto
+    // horário solto (um ou mais códigos na mesma linha, ex: "2M34 4T12")
+    if (/^[1-7]+[MTN][1-9]+(\s+[1-7]+[MTN][1-9]+)*(\s*\(.*)?$/.test(linha)) continue;
     if (/^[(\d]/.test(linha) && !pareceContinuacaoNome(linha)) continue;
 
     // Caso layout A: a linha tem "FISICA 3   01" — limpa números soltos no final
     const limpo = linha
       .replace(/\s+\d{2,3}\s*$/, '')                                // turma vazada no fim
-      .replace(/\s+[1-7]+[MTN][1-9]+(\s*\(.*?\))?\s*$/, '')         // horário no fim
+      .replace(/(\s+[1-7]+[MTN][1-9]+)+(\s*\(.*?\))?\s*$/, '')      // horário(s) no fim
       .replace(/\s{2,}/g, ' ')                                      // colapsa espaços longos
       .trim();
     if (!limpo) continue;
@@ -253,7 +263,7 @@ function extractNomeEProfessor(bloco: string, code: string): { nome: string; pro
   const linhasDepois = depoisMatric.split(/[\n\r]+/).map((l) => l.trim()).filter(Boolean);
   for (const linha of linhasDepois) {
     if (/^Tipo:/i.test(linha) || /^Local:/i.test(linha)) break;
-    if (/^[1-7]+[MTN][1-9]+(\s*\(.*)?$/.test(linha)) continue;
+    if (/^[1-7]+[MTN][1-9]+(\s+[1-7]+[MTN][1-9]+)*(\s*\(.*)?$/.test(linha)) continue;
     if (/^[(\d]/.test(linha)) continue;
     if (pareceNomeDePessoa(linha)) {
       professor = linha;
@@ -333,8 +343,13 @@ export function parseSigaaAtestado(rawText: string): SigaaAtestado {
     const bloco = text.slice(index, blocoFim);
 
     const { nome: nomeDisc, professor } = extractNomeEProfessor(bloco, code);
-    const horarioMatch = RX_CODIGO_HORARIO.exec(bloco);
-    const codigoHorario = horarioMatch?.[1] ?? null;
+    // Captura TODOS os códigos de horário do bloco — disciplinas com horários
+    // em turnos distintos (ex: "2M34 4T12") têm mais de um. Antes só o primeiro
+    // era decodificado e os demais sumiam silenciosamente (PKG-SHARED-03).
+    const codigosHorario = [...new Set(
+      [...bloco.matchAll(RX_CODIGO_HORARIO)].map((h) => h[1]),
+    )];
+    const codigoHorario = codigosHorario.length > 0 ? codigosHorario.join(' ') : null;
     const localMatch = RX_LOCAL.exec(bloco);
     const local = localMatch?.[1]?.trim() ?? null;
     const turmaMatch = RX_TURMA_MATRICULA.exec(bloco);
@@ -347,14 +362,18 @@ export function parseSigaaAtestado(rawText: string): SigaaAtestado {
       professor,
       local,
       codigo_horario_sigaa: codigoHorario,
-      horarios: codigoHorario ? parseHorarioCode(codigoHorario) : [],
+      horarios: codigosHorario.flatMap((c) => parseHorarioCode(c)),
     });
   }
 
   // --- Warnings por matéria ---
   for (const mat of materias) {
-    if (mat.codigo_horario_sigaa && mat.horarios.length === 0) {
-      warnings.push(`Código "${mat.codigo_horario_sigaa}" (${mat.code}) não pôde ser decodificado — confira manualmente.`);
+    // Checa código a código: matéria multi-turno pode ter um código válido e
+    // outro indecifrável — antes a falha parcial era silenciosa.
+    for (const cod of mat.codigo_horario_sigaa?.split(' ') ?? []) {
+      if (parseHorarioCode(cod).length === 0) {
+        warnings.push(`Código "${cod}" (${mat.code}) não pôde ser decodificado — confira manualmente.`);
+      }
     }
     if (!mat.codigo_horario_sigaa) {
       warnings.push(`${mat.code} (${mat.nome}) ficou sem horário — confira manualmente.`);
