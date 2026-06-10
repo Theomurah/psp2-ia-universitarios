@@ -54,3 +54,6 @@ verify_jwt = true
 
 [functions.generate-system-prompt]
 verify_jwt = true
+
+[functions.parse-sigaa-atestado]
+verify_jwt = true

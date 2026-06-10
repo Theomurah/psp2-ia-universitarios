@@ -6,15 +6,26 @@ name: Deploy Edge Functions
 # Secrets necessárias no GitHub (Settings → Secrets and variables → Actions):
 #   SUPABASE_ACCESS_TOKEN  — token da conta Supabase (gerar em https://supabase.com/dashboard/account/tokens)
 #   SUPABASE_PROJECT_REF   — ID do projeto (parte do meio do URL: https://XXXXX.supabase.co)
+#   SUPABASE_DB_PASSWORD   — senha do banco (Dashboard → Settings → Database), usada pelo `supabase db push`
 
 on:
   push:
     branches: [main]
     paths:
       - 'supabase/functions/**'
+      - 'supabase/migrations/**'
       - 'packages/shared/**'
       - '.github/workflows/deploy-functions.yml'
   workflow_dispatch:   # permite disparar manualmente em Actions → Run workflow
+
+# Serializa runs: dois pushes rápidos em main não rodam em paralelo, evitando
+# que um run antigo termine depois do novo e sobrescreva functions com código
+# mais velho. cancel-in-progress: false → runs enfileiram, nenhum é abortado
+# no meio (abortaria entre migrations e functions).
+# Origem: auditoria 2026-06-10 (DOCS-CONFIG-09).
+concurrency:
+  group: deploy-functions
+  cancel-in-progress: false
 
 jobs:
   # Gate de segurança: roda lint+typecheck+test+build antes do deploy.
@@ -49,10 +60,19 @@ jobs:
       - name: Build
         run: npm run build
 
-  deploy:
-    name: Deploy Edge Functions to Supabase
+  # Aplica migrations ANTES do deploy das functions: código novo pode depender
+  # de tabela/RPC criada em migration (ex: activity_logs da 0018 consumida pelo
+  # logger do front). Ordem: banco primeiro, código depois — migrations devem
+  # ser backward-compatible com o código anterior (expand/contract).
+  # Origem: auditoria 2026-06-10 (DOCS-CONFIG-07).
+  migrate:
+    name: Apply database migrations (supabase db push)
     runs-on: ubuntu-latest
-    needs: validate   # bloqueia deploy se validate falhar
+    needs: validate
+    # Guard pra forks: secrets do projeto não existem em fork — sem este if o
+    # job falharia no link. (secrets não são acessíveis em `if` de job, então
+    # o guard é pelo nome do repositório.)
+    if: github.repository == 'Theomurah/psp2-ia-universitarios'
 
     steps:
       - name: Checkout
@@ -61,7 +81,39 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinada (não 'latest'): a garantia de verify_jwt depende do CLI ler
+          # [functions.*] do config.toml — bump de versão só via PR deliberado.
+          # Origem: auditoria 2026-06-10 (DOCS-CONFIG-08).
+          version: 2.90.0
+
+      - name: Link project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: Push migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase db push
+
+  deploy:
+    name: Deploy Edge Functions to Supabase
+    runs-on: ubuntu-latest
+    needs: [validate, migrate]   # bloqueia deploy se validate ou migrations falharem
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          # Mesma versão pinada do job migrate — manter em sincronia.
+          version: 2.90.0
 
       - name: Link project
         env:
@@ -69,35 +121,18 @@ jobs:
         run: |
           supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
 
-      # Todas as functions são deployadas COM verify-jwt habilitado.
+      # Todas as functions são deployadas COM verify-jwt habilitado — declarado
+      # por função em supabase/config.toml ([functions.*] verify_jwt = true).
       # process-document aceita Bearer service_role (chamada interna do ingest-document)
       # OU JWT do usuário dono do job — validação manual em authorizeProcessDocument().
-      - name: Deploy ingest-document
+      #
+      # Deploy único (sem nome) sobe todas as functions de uma vez (diretórios
+      # com prefixo _ são ignorados pelo CLI): minimiza a janela de versões
+      # mistas em prod — antes eram 5 steps sequenciais e uma falha no meio
+      # deixava, ex., ingest-document novo chamando process-document antigo.
+      # Origem: auditoria 2026-06-10 (DOCS-CONFIG-09).
+      - name: Deploy all Edge Functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          supabase functions deploy ingest-document --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
-
-      - name: Deploy process-document
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          supabase functions deploy process-document --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
-
-      - name: Deploy connect-drive
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          supabase functions deploy connect-drive --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
-
-      - name: Deploy generate-system-prompt
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          supabase functions deploy generate-system-prompt --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
-
-      - name: Deploy parse-sigaa-atestado
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          supabase functions deploy parse-sigaa-atestado --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+          supabase functions deploy --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
