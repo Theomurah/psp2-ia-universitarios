@@ -19,7 +19,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { handleCorsPrefligh } from '../_shared/cors.ts';
+import { handleCorsPreflight } from '../_shared/cors.ts';
 import { createAuthClient } from '../_shared/supabase-client.ts';
 import {
   jsonResponse,
@@ -35,10 +35,20 @@ const MAX_BODY_BYTES = 5 * 1024 * 1024; // 5 MiB
 const log = createLogger('parse-sigaa-atestado');
 
 serve(async (req) => {
-  const cors = handleCorsPrefligh(req);
+  const cors = handleCorsPreflight(req);
   if (cors) return cors;
 
   try {
+    // Content-Length obrigatório: requireMaxPayload retorna null quando o
+    // header está ausente (ex.: Transfer-Encoding: chunked), e logo abaixo
+    // req.formData() bufferiza o corpo INTEIRO em memória antes do check de
+    // file.size — um corpo chunked de centenas de MB derrubaria o worker
+    // (DoS por OOM). Rejeitamos com 411 (Length Required) antes de ler o body;
+    // browsers/fetch sempre enviam o header em corpos não-streaming.
+    // Origem: auditoria 2026-06-10 (EDGE-HANDLERS-01).
+    if (!req.headers.get('content-length')) {
+      return errorResponse(req, 'length_required', 411, 'Header Content-Length é obrigatório.');
+    }
     const sizeErr = requireMaxPayload(req, MAX_BODY_BYTES);
     if (sizeErr) return sizeErr;
 

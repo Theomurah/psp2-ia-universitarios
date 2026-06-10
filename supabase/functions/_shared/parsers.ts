@@ -32,10 +32,24 @@ export interface ParseResult {
 }
 
 export class ParseError extends Error {
-  constructor(message: string, public formato: FormatoDocumento, public cause?: unknown) {
+  // `override` exigido: Error já declara `cause` (ES2022) e o deno check
+  // roda com noImplicitOverride.
+  constructor(message: string, public formato: FormatoDocumento, public override cause?: unknown) {
     super(message);
     this.name = 'ParseError';
   }
+}
+
+/**
+ * Opções de parsing — plumbing de configuração runtime.
+ *
+ * `visionModel`: modelo de OCR resolvido pelo caller (ex.: via getModelConfig(),
+ * que lê app_settings editável no /admin). Sem valor, getVisionProvider cai
+ * pro fallback de env (VISION_MODEL / VISION_PROVIDER) e depois pro default.
+ * Origem: auditoria 2026-06-10 (EDGE-HANDLERS-07).
+ */
+export interface ParseOptions {
+  visionModel?: string;
 }
 
 // =============================================================
@@ -63,7 +77,9 @@ export async function parsePdf(buffer: Uint8Array): Promise<ParseResult> {
 // =============================================================
 export async function parseDocx(buffer: Uint8Array): Promise<ParseResult> {
   try {
-    const result = await mammoth.extractRawText({ arrayBuffer: buffer.buffer });
+    // Cast seguro: o buffer chega de `new Uint8Array(await blob.arrayBuffer())`,
+    // então o backing store é sempre ArrayBuffer (nunca SharedArrayBuffer).
+    const result = await mammoth.extractRawText({ arrayBuffer: buffer.buffer as ArrayBuffer });
     const warnings = result.messages
       .filter((m: { type: string }) => m.type === 'warning')
       .map((m: { message: string }) => m.message);
@@ -130,9 +146,15 @@ export function parseMd(buffer: Uint8Array): ParseResult {
 // =============================================================
 // Imagens — OCR via VisionProvider (Claude ou Gemini, configurável)
 // =============================================================
-export async function parseImage(buffer: Uint8Array, mimeType: string): Promise<ParseResult> {
+export async function parseImage(
+  buffer: Uint8Array,
+  mimeType: string,
+  opts?: ParseOptions,
+): Promise<ParseResult> {
   try {
-    const provider = getVisionProvider();
+    // Override programático (app_settings via /admin) tem prioridade; aliases
+    // legados ('claude', 'gemini') são expandidos dentro de getVisionProvider.
+    const provider = getVisionProvider(opts?.visionModel);
     const result = await provider.extractText(buffer, mimeType);
 
     return {
@@ -161,6 +183,7 @@ export async function parseDocument(
   buffer: Uint8Array,
   formato: FormatoDocumento,
   mimeType?: string,
+  opts?: ParseOptions,
 ): Promise<ParseResult> {
   switch (formato) {
     case 'pdf':
@@ -172,7 +195,7 @@ export async function parseDocument(
     case 'md':
       return parseMd(buffer);
     case 'image':
-      return parseImage(buffer, mimeType ?? 'image/png');
+      return parseImage(buffer, mimeType ?? 'image/png', opts);
     default:
       throw new ParseError(`Formato não suportado: ${formato}`, formato);
   }

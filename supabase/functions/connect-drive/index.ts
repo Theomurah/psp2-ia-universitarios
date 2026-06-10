@@ -24,8 +24,8 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { z } from 'npm:zod@3.23.8';
-import { handleCorsPrefligh } from '../_shared/cors.ts';
-import { createAuthClient, createServiceClient } from '../_shared/supabase-client.ts';
+import { handleCorsPreflight } from '../_shared/cors.ts';
+import { createAuthClient } from '../_shared/supabase-client.ts';
 import {
   jsonResponse,
   errorResponse,
@@ -47,7 +47,7 @@ const ConnectDriveSchema = z.object({
 });
 
 serve(async (req) => {
-  const cors = handleCorsPrefligh(req);
+  const cors = handleCorsPreflight(req);
   if (cors) return cors;
 
   try {
@@ -98,11 +98,16 @@ serve(async (req) => {
       throw err;
     }
 
-    // 5) Salva tokens + root_folder_id no profile (service role pra contornar RLS)
-    const service = createServiceClient();
+    // 5) Salva tokens + root_folder_id no profile com o client AUTENTICADO —
+    //    a RLS cobre (profiles_update_own, 0006: update da própria linha) e o
+    //    comentário antigo ("service role pra contornar RLS") estava errado:
+    //    não há nada pra contornar. Manter a RLS ativa é defesa em
+    //    profundidade contra um `.eq('id', ...)` errado escrever tokens no
+    //    profile de outro usuário.
+    //    Origem: auditoria 2026-06-10 (EDGE-HANDLERS-02).
     const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
 
-    const { error: updateError } = await service
+    const { error: updateError } = await auth
       .from('profiles')
       .update({
         google_access_token: provider_token,
@@ -117,7 +122,7 @@ serve(async (req) => {
       // Schema pode estar sem 0004 aplicada — tenta update parcial
       const msg = updateError.message?.toLowerCase() ?? '';
       if (msg.includes('google_access_token') || msg.includes('drive_connected_at') || msg.includes('google_token_expires_at')) {
-        const { error: fallbackError } = await service
+        const { error: fallbackError } = await auth
           .from('profiles')
           .update({
             google_refresh_token: provider_refresh_token,
