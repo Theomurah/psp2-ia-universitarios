@@ -12,7 +12,9 @@ import { NavLink, Outlet } from 'react-router-dom';
 export default function AdminLayout() {
   return (
     <div className="container">
-      <nav className="admin-subnav" role="tablist" aria-label="Seções do painel admin">
+      {/* Sem role=tablist: são links de navegação (NavLink já emite aria-current),
+          não tabs ARIA — ver achado WEB-ROUTES-09 da auditoria 2026-06-10. */}
+      <nav className="admin-subnav" aria-label="Seções do painel admin">
         <NavLink to="/admin/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
           Visão geral
         </NavLink>

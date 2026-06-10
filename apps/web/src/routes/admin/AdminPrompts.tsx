@@ -11,7 +11,9 @@ import { useToast } from '../../components/Toast';
 import { createLogger } from '../../lib/log';
 import type { PromptLibraryItem, PromptCategory } from '@psp2/shared';
 
-const log = createLogger('admin');
+// 'admin_ui' (não 'admin'): scope 'admin' é reservado pra auditoria server-side
+// (migration 0024) — a RLS rejeitaria a persistência client-side em silêncio.
+const log = createLogger('admin_ui');
 
 const CATEGORY_LABEL: Record<PromptCategory, string> = {
   estudo: 'Estudo',

@@ -173,11 +173,12 @@ export default function DashboardPage() {
             {view === 'archived' ? 'Arquivados' : 'Jobs'}{' '}
             <span className="count">({filtered.length}{jobs && filtered.length !== jobs.length ? ` / ${jobs.length}` : ''})</span>
           </h2>
-          <div className="view-toggle" role="tablist" aria-label="Visualização">
+          {/* Botões toggle simples (aria-pressed) — role=tablist sem o padrão
+              completo de tabs engana leitores de tela (WEB-ROUTES-09). */}
+          <div className="view-toggle" role="group" aria-label="Visualização">
             <button
               type="button"
-              role="tab"
-              aria-selected={view === 'active'}
+              aria-pressed={view === 'active'}
               className={view === 'active' ? 'active' : ''}
               onClick={() => setView('active')}
             >
@@ -185,8 +186,7 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={view === 'archived'}
+              aria-pressed={view === 'archived'}
               className={view === 'archived' ? 'active' : ''}
               onClick={() => setView('archived')}
             >
@@ -214,13 +214,12 @@ export default function DashboardPage() {
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
-            <div className="prompts-filter" role="tablist" aria-label="Filtrar por status">
+            <div className="prompts-filter" role="group" aria-label="Filtrar por status">
               {STATUS_OPTIONS.map((s) => (
                 <button
                   key={s.value}
                   type="button"
-                  role="tab"
-                  aria-selected={statusFilter === s.value}
+                  aria-pressed={statusFilter === s.value}
                   className={statusFilter === s.value ? 'active' : ''}
                   onClick={() => setStatusFilter(s.value)}
                 >
@@ -336,9 +335,22 @@ export default function DashboardPage() {
 // Corpo do drawer — alterna preview pronto / processando / falhou
 // =============================================================
 function PreviewBody({ job }: { job: JobWithDoc }) {
-  if (job.status === 'completed' || job.status === 'completed_with_warning') {
+  // needs_review: o pipeline COMPLETA a síntese (commit 97a1ec2) e só marca o
+  // status — então mostramos o conteúdo normalmente, com aviso de classificação
+  // incerta (auditoria 2026-06-10, WEB-ROUTES-04; default aprovado pelo PM).
+  if (job.status === 'completed' || job.status === 'completed_with_warning' || job.status === 'needs_review') {
     return (
       <>
+        {job.status === 'needs_review' && (
+          <div style={{ marginBottom: '1rem' }}>
+            <span className="badge tone-warn">Revisar classificação</span>
+            <p className="hint" style={{ marginTop: '0.35rem' }}>
+              A classificação automática (matéria/tipo) ficou abaixo do limite de confiança.
+              Confira se a matéria atribuída está correta — se não estiver, refaça o upload
+              com um nome de arquivo ou conteúdo mais contextualizado.
+            </p>
+          </div>
+        )}
         <MarkdownPreview documentId={job.document_id} />
         <FeedbackWidget jobId={job.id} />
       </>
@@ -358,16 +370,6 @@ function PreviewBody({ job }: { job: JobWithDoc }) {
         <p className="hint" style={{ fontSize: '0.82rem' }}>
           Veja o feed <strong>Últimas operações</strong> abaixo para o histórico detalhado.
         </p>
-      </div>
-    );
-  }
-
-  if (job.status === 'needs_review') {
-    return (
-      <div className="preview-pane-status">
-        <span className="badge tone-warn" style={{ alignSelf: 'center' }}>Precisa revisar</span>
-        <p className="step">A classificação ficou abaixo do limite de confiança.</p>
-        <p className="hint">Edite os dados do documento em Configurações ou refaça o upload com mais contexto.</p>
       </div>
     );
   }

@@ -8,10 +8,7 @@
 
 import { FEEDBACK_TOPIC_LABELS } from '@psp2/shared';
 import { useAdminFeedbackOverview } from '../../hooks/useFeedback';
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-}
+import { fmtDate } from '../../lib/format';
 
 function ratingTone(r: number): 'success' | 'warn' | 'error' {
   if (r >= 4) return 'success';

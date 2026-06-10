@@ -75,15 +75,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setItems((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // O auto-dismiss vive no ToastCard (timer pausável em hover/foco) —
+  // aqui só inserimos o item (auditoria 2026-06-10, WEB-COMPONENTS-14).
   const push = useCallback(
     (kind: ToastKind, title: string, description?: string, opts?: ToastOpts) => {
       idRef.current += 1;
       const id = idRef.current;
       setItems((prev) => [...prev, { id, kind, title, description, action: opts?.action }]);
-      const duration = opts?.action ? ACTION_DURATION_MS : DURATION_MS[kind];
-      window.setTimeout(() => dismiss(id), duration);
     },
-    [dismiss],
+    [],
   );
 
   const api = useMemo<ToastApi>(
@@ -118,9 +118,12 @@ function ToastViewport({
   items: ToastItem[];
   onDismiss: (id: number) => void;
 }) {
-  if (items.length === 0) return null;
+  // Sempre montado, mesmo vazio: live region precisa existir no DOM ANTES do
+  // conteúdo mudar pra ser anunciada de forma confiável por NVDA/VoiceOver
+  // (auditoria 2026-06-10, WEB-COMPONENTS-11). Vazio é invisível por CSS
+  // (sem fundo, pointer-events: none) — nada a esconder.
   return (
-    <div className="toast-viewport" role="region" aria-label="Notificações">
+    <div className="toast-viewport" role="region" aria-label="Notificações" aria-live="polite">
       {items.map((t) => (
         <ToastCard key={t.id} item={t} onDismiss={() => onDismiss(t.id)} />
       ))}
@@ -130,17 +133,43 @@ function ToastViewport({
 
 function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) {
   const [leaving, setLeaving] = useState(false);
+  const [paused, setPaused] = useState(false);
+  // Tempo restante sobrevive a ciclos de pausa/retomada.
+  const remainingRef = useRef(item.action ? ACTION_DURATION_MS : DURATION_MS[item.kind]);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
 
+  // Timer pausável (WCAG 2.2.1 — WEB-COMPONENTS-14): pausa quando o mouse ou
+  // o foco do teclado entra no toast, retoma ao sair. O cleanup desconta o
+  // tempo já decorrido, então retomar continua de onde parou.
   useEffect(() => {
-    const duration = item.action ? ACTION_DURATION_MS : DURATION_MS[item.kind];
-    const t = window.setTimeout(() => setLeaving(true), duration - 300);
-    return () => window.clearTimeout(t);
-  }, [item.kind, item.action]);
+    if (paused || leaving) return;
+    const startedAt = Date.now();
+    const t = window.setTimeout(() => {
+      setLeaving(true);
+      window.setTimeout(() => onDismissRef.current(), 300); // espera animação de saída
+    }, Math.max(300, remainingRef.current));
+    return () => {
+      window.clearTimeout(t);
+      remainingRef.current -= Date.now() - startedAt;
+    };
+  }, [paused, leaving]);
 
   return (
     <div
       className={`toast toast-${item.kind} ${leaving ? 'toast-leaving' : ''}`}
-      role={item.kind === 'error' ? 'alert' : 'status'}
+      // Erro continua role="alert" (assertivo, anuncia ao montar). Não-erro NÃO
+      // tem live role próprio: o anúncio vem do aria-live="polite" do viewport
+      // sempre-montado — evita live region aninhada/anúncio duplicado.
+      role={item.kind === 'error' ? 'alert' : undefined}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={(e) => {
+        // Só retoma quando o foco sai do toast (não ao mover entre filhos).
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        setPaused(false);
+      }}
     >
       <span className="toast-icon" aria-hidden>
         {item.kind === 'success' && '✓'}

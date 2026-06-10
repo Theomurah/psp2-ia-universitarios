@@ -31,6 +31,17 @@ const DIAS: { key: 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab'; label: string 
 
 const ROW_HEIGHT_PX = 18; // por 30 minutos — mais denso que antes (era 22)
 
+// Dia por extenso pro nome acessível dos blocos — a posição na coluna do grid
+// é invisível pra leitor de tela (WEB-COMPONENTS-13).
+const DIA_EXTENSO: Record<string, string> = {
+  seg: 'segunda-feira',
+  ter: 'terça-feira',
+  qua: 'quarta-feira',
+  qui: 'quinta-feira',
+  sex: 'sexta-feira',
+  sab: 'sábado',
+};
+
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(':').map(Number);
   return h * 60 + m;
@@ -126,8 +137,14 @@ export default function HorariosGrade({ materias, onSelectMateria, selectedCode 
             if (diaIdx === -1) return null;
             const startMin = timeToMinutes(h.inicio);
             const endMin = timeToMinutes(h.fim);
-            const rowStart = (startMin - minMin) / 30 + 2;
-            const rowSpan = Math.max(1, Math.round((endMin - startMin) / 30));
+            // Sempre slots INTEIROS: horário não múltiplo de 30 min (ex: 08:15)
+            // geraria grid-row fracionário — CSS inválido, descartado pelo browser,
+            // bloco cai em auto-placement (WEB-COMPONENTS-05). Início arredonda
+            // pra baixo e fim pra cima, cobrindo a faixa real da aula.
+            const startSlot = Math.floor((startMin - minMin) / 30);
+            const endSlot = Math.ceil((endMin - minMin) / 30);
+            const rowStart = startSlot + 2;
+            const rowSpan = Math.max(1, endSlot - startSlot);
             const color = colorForMateria(mat.code);
             const isSelected = selectedCode === mat.code;
             const showLocal = rowSpan >= 4 && Boolean(mat.local);
@@ -145,6 +162,7 @@ export default function HorariosGrade({ materias, onSelectMateria, selectedCode 
                 }}
                 onClick={() => onSelectMateria?.(mat.code)}
                 title={`${mat.code} · ${mat.nome}\n${h.inicio} – ${h.fim}${mat.local ? `\n${mat.local}` : ''}${mat.professor ? `\n${mat.professor}` : ''}`}
+                aria-label={`${mat.code} ${mat.nome}, ${DIA_EXTENSO[h.dia] ?? h.dia} de ${h.inicio} às ${h.fim}${mat.local ? `, ${mat.local}` : ''}${mat.professor ? `, ${mat.professor}` : ''}`}
               >
                 <strong>{mat.code}</strong>
                 <span className="grade-block-time">{h.inicio}</span>

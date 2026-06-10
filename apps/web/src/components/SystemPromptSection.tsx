@@ -12,10 +12,7 @@
 import { useState } from 'react';
 import { useActiveSystemPrompt, useRegenerateSystemPrompt } from '../hooks/useSystemPrompt';
 import { useToast } from './Toast';
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+import { fmtDate } from '../lib/format';
 
 export default function SystemPromptSection() {
   const { data: prompt, isLoading } = useActiveSystemPrompt();

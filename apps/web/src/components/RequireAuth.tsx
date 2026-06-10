@@ -18,7 +18,7 @@ interface Props {
 export default function RequireAuth({ children, requireOnboarding = false }: Props) {
   const { loading, session } = useAuth();
   const location = useLocation();
-  const { data: profile, isLoading: profileLoading } = useProfile();
+  const { data: profile, isError: profileError, refetch: refetchProfile } = useProfile();
 
   if (loading) {
     return (
@@ -34,7 +34,23 @@ export default function RequireAuth({ children, requireOnboarding = false }: Pro
   }
 
   if (requireOnboarding) {
-    if (profileLoading) {
+    // Erro na query (rede/RLS após retries): mostrar retry em vez de redirecionar
+    // — mandar usuário com perfil completo pro /onboarding seria silencioso e errado
+    // (auditoria 2026-06-10, WEB-COMPONENTS-04).
+    if (profileError) {
+      return (
+        <div className="full-page-loader">
+          <span>Não foi possível carregar seu perfil.</span>
+          <button type="button" className="primary" onClick={() => void refetchProfile()}>
+            Tentar novamente
+          </button>
+        </div>
+      );
+    }
+    // Distingue "não sei ainda" (undefined) de "sei que está incompleto" —
+    // espelha o padrão do RequireAdmin (incidente 2026-05-27): não usar só
+    // isLoading, que vira false com data ainda undefined.
+    if (profile === undefined) {
       return (
         <div className="full-page-loader">
           <span className="spinner" />

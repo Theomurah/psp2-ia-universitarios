@@ -38,6 +38,8 @@ export interface AdminRecentJob {
   attempt_count: number;
   error_reason: string | null;
   created_at: string;
+  /** Quando o worker claimou o job (migration 0029). Null se ainda pending. */
+  started_at: string | null;
   completed_at: string | null;
 }
 

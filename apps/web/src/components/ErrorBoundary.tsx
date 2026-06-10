@@ -60,8 +60,11 @@ export class ErrorBoundary extends Component<Props, State> {
             gap: '1rem',
           }}
         >
+          {/* Estilos inline (layout independe do CSS principal), mas cores via
+              tokens UnB — index.css é importado estaticamente no bundle, então
+              as CSS vars existem mesmo no fallback (WEB-COMPONENTS-07). */}
           <h1 style={{ fontSize: '1.5rem', margin: 0 }}>Algo deu errado</h1>
-          <p style={{ maxWidth: '36rem', color: '#555' }}>
+          <p style={{ maxWidth: '36rem', color: 'var(--text-muted)' }}>
             Tivemos um problema inesperado ao carregar essa parte do PSP2.
             Tente recarregar a página. Se o erro persistir, copie a mensagem
             abaixo e mande pra equipe.
@@ -69,14 +72,14 @@ export class ErrorBoundary extends Component<Props, State> {
           {this.state.error && (
             <pre
               style={{
-                background: '#f4f4f5',
-                border: '1px solid #e4e4e7',
-                borderRadius: '0.5rem',
+                background: 'var(--bg-muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
                 padding: '0.75rem 1rem',
                 maxWidth: '36rem',
                 overflow: 'auto',
                 fontSize: '0.85rem',
-                color: '#333',
+                color: 'var(--text)',
               }}
             >
               {this.state.error.message}
@@ -87,10 +90,10 @@ export class ErrorBoundary extends Component<Props, State> {
             onClick={this.handleReload}
             style={{
               padding: '0.6rem 1.2rem',
-              borderRadius: '0.5rem',
-              border: '1px solid #18181b',
-              background: '#18181b',
-              color: 'white',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--primary)',
+              background: 'var(--primary)',
+              color: 'var(--bg-elevated)',
               cursor: 'pointer',
               fontSize: '0.95rem',
             }}

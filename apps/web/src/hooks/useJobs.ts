@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { createLogger } from '../lib/log';
@@ -89,10 +89,18 @@ export function useJobsRealtime() {
                 if (prev !== next) {
                   cacheStatus(lastStatusRef.current, newRow.id, next);
                   notifyStatusChange(toast, newRow, next);
+                  // Métricas e feed da mesma tela também mudam quando o status
+                  // transiciona — sem isso MetricsCards/ActivityFeed ficavam
+                  // stale apesar do rótulo "em tempo real" (WEB-HOOKS-LIB-05).
+                  // Só em mudança de STATUS (não a cada UPDATE de progresso),
+                  // pra não refazer as queries em todo avanço de current_step.
+                  invalidateDashboardQueries(qc);
                 }
               } else if (payload.eventType === 'INSERT') {
                 const newRow = payload.new as JobRecord;
                 cacheStatus(lastStatusRef.current, newRow.id, newRow.status);
+                // Job novo altera contagens das métricas e gera evento no feed.
+                invalidateDashboardQueries(qc);
               }
             } catch (err) {
               log.error('realtime_payload_error', { event_type: payload.eventType, ...log.fromError(err) });
@@ -124,6 +132,17 @@ export function useJobsRealtime() {
   }, [qc, toast]);
 
   return connected;
+}
+
+/**
+ * Invalida as queries do Dashboard que dependem do estado dos jobs além de
+ * ['jobs']: cards de métricas (useUserMetrics → ['user-metrics']) e feed de
+ * atividade (useActivity → ['activity', filters], coberto pelo prefixo).
+ * Origem: auditoria 2026-06-10 (achado WEB-HOOKS-LIB-05).
+ */
+function invalidateDashboardQueries(qc: QueryClient): void {
+  void qc.invalidateQueries({ queryKey: ['user-metrics'] });
+  void qc.invalidateQueries({ queryKey: ['activity'] });
 }
 
 function notifyStatusChange(
