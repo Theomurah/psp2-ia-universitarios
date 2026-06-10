@@ -221,6 +221,17 @@ DECLARE
   v_rand numeric;
   v_idx int;
 BEGIN
+  -- ===========================================================================
+  -- GUARD DE IDEMPOTÊNCIA (auditoria 2026-06-10, MIGRATIONS-02)
+  -- Os emails do seed são fixos (seed-NNN@psp2.test) e o INSERT em auth.users
+  -- não tem ON CONFLICT — re-rodar estourava unique violation no email.
+  -- Se qualquer usuário de seed já existe, a migration vira no-op.
+  -- ===========================================================================
+  IF EXISTS (SELECT 1 FROM auth.users WHERE email LIKE '%@psp2.test') THEN
+    RAISE NOTICE 'Seed de teste já presente — nada a fazer (idempotente).';
+    RETURN;
+  END IF;
+
   -- Reproducibilidade
   PERFORM setseed(0.42);
 
