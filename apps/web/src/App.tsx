@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import DashboardPage from './routes/DashboardPage';
@@ -9,17 +10,20 @@ import HorariosPage from './routes/HorariosPage';
 import PrivacidadePage from './routes/PrivacidadePage';
 import TermosPage from './routes/TermosPage';
 import NotFoundPage from './routes/NotFoundPage';
-import AdminLayout from './routes/admin/AdminLayout';
-import AdminDashboard from './routes/admin/AdminDashboard';
-import AdminPrompts from './routes/admin/AdminPrompts';
-import AdminModelos from './routes/admin/AdminModelos';
-import AdminFeedback from './routes/admin/AdminFeedback';
 import RequireAuth from './components/RequireAuth';
 import RequireAdmin from './components/RequireAdmin';
 import TopbarUser from './components/TopbarUser';
 import UnbLogo from './components/UnbLogo';
 import { ToastProvider } from './components/Toast';
 import { useIsAdmin } from './hooks/useIsAdmin';
+
+// Code-split: o painel /admin (4 páginas + charts) só é usado por 1-2 admins.
+// Carregar sob demanda mantém o bundle do aluno leve.
+const AdminLayout = lazy(() => import('./routes/admin/AdminLayout'));
+const AdminDashboard = lazy(() => import('./routes/admin/AdminDashboard'));
+const AdminPrompts = lazy(() => import('./routes/admin/AdminPrompts'));
+const AdminModelos = lazy(() => import('./routes/admin/AdminModelos'));
+const AdminFeedback = lazy(() => import('./routes/admin/AdminFeedback'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +67,14 @@ export default function App() {
       <ToastProvider>
         <BrowserRouter>
           <Topbar />
+          <Suspense
+            fallback={
+              <div className="full-page-loader">
+                <span className="spinner" />
+                <span>Carregando…</span>
+              </div>
+            }
+          >
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/privacidade" element={<PrivacidadePage />} />
@@ -125,6 +137,7 @@ export default function App() {
             </Route>
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </ToastProvider>
     </QueryClientProvider>
