@@ -1781,6 +1781,36 @@ button.danger:disabled {
   background: var(--warn-soft);
 }
 
+/* Linha do topo do /admin: subnav à esquerda, toggle à direita */
+.admin-topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+/* Toggle "incluir dados de teste" */
+.admin-test-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.admin-test-toggle input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--primary);
+  cursor: pointer;
+  margin: 0;
+}
+.admin-test-toggle:hover { color: var(--text); }
+
 /* Sub-navegação do /admin (estilo igual ao view-toggle do Dashboard) */
 .admin-subnav {
   display: inline-flex;

@@ -8,6 +8,7 @@
 
 import { FEEDBACK_TOPIC_LABELS } from '@psp2/shared';
 import { useAdminFeedbackOverview } from '../../hooks/useFeedback';
+import { useAdminPrefs } from '../../hooks/useAdminPrefs';
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -20,7 +21,8 @@ function ratingTone(r: number): 'success' | 'warn' | 'error' {
 }
 
 export default function AdminFeedback() {
-  const { data, isLoading, error } = useAdminFeedbackOverview();
+  const { includeTest } = useAdminPrefs();
+  const { data, isLoading, error } = useAdminFeedbackOverview(includeTest);
 
   if (isLoading) {
     return (
