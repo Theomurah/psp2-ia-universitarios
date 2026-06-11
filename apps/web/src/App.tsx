@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import DashboardPage from './routes/DashboardPage';
@@ -13,6 +13,7 @@ import NotFoundPage from './routes/NotFoundPage';
 import RequireAuth from './components/RequireAuth';
 import RequireAdmin from './components/RequireAdmin';
 import TopbarUser from './components/TopbarUser';
+import ThemeToggle from './components/ThemeToggle';
 import UnbLogo from './components/UnbLogo';
 import { ToastProvider } from './components/Toast';
 import { useIsAdmin } from './hooks/useIsAdmin';
@@ -39,24 +40,55 @@ const STANDALONE_ROUTES = new Set(['/login', '/onboarding', '/privacidade', '/te
 function Topbar() {
   const { pathname } = useLocation();
   const { data: isAdmin } = useIsAdmin();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Fecha o menu mobile sempre que a rota muda (ex.: clicou num link).
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  // Esc fecha o menu mobile.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
+
   if (STANDALONE_ROUTES.has(pathname)) return null;
+
+  const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '');
+
   return (
     <nav className="topbar">
       <NavLink to="/" className="brand">
         <UnbLogo size={36} />
       </NavLink>
-      <div className="topbar-links">
-        <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>Dashboard</NavLink>
-        <NavLink to="/materias" className={({ isActive }) => (isActive ? 'active' : '')}>Matérias</NavLink>
-        <NavLink to="/prompts" className={({ isActive }) => (isActive ? 'active' : '')}>Prompts</NavLink>
-        <NavLink to="/settings" className={({ isActive }) => (isActive ? 'active' : '')}>Configurações</NavLink>
+      <div className={`topbar-links${menuOpen ? ' open' : ''}`} id="topbar-nav">
+        <NavLink to="/" end className={linkClass}>Dashboard</NavLink>
+        <NavLink to="/materias" className={linkClass}>Matérias</NavLink>
+        <NavLink to="/prompts" className={linkClass}>Prompts</NavLink>
+        <NavLink to="/settings" className={linkClass}>Configurações</NavLink>
         {isAdmin && (
           <NavLink to="/admin" className={({ isActive }) => (isActive ? 'active admin-link' : 'admin-link')}>
             Admin
           </NavLink>
         )}
       </div>
+      <ThemeToggle />
       <TopbarUser />
+      <button
+        type="button"
+        className="topbar-burger"
+        aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
+        aria-expanded={menuOpen}
+        aria-controls="topbar-nav"
+        onClick={() => setMenuOpen((v) => !v)}
+      >
+        <span aria-hidden>{menuOpen ? '✕' : '☰'}</span>
+      </button>
     </nav>
   );
 }

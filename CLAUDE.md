@@ -205,6 +205,38 @@ em componentes/CSS novos. Os tokens vivem em `apps/web/src/index.css` no `:root`
 - Inputs herdam `--primary` no focus + `box-shadow: 0 0 0 3px var(--primary-soft)`.
 - Tabelas com `<th>` sticky no scroll vertical (já no `.atividade-table`).
 - Botões icon-only sempre com `aria-label`.
+- **`prefers-reduced-motion`**: há um bloco global no `index.css` que zera
+  animações/transições. Não criar animação que dependa de movimento pra
+  comunicar estado sem um fallback estático.
+
+### Responsividade (mobile-first nas correções)
+
+> Origem: 2026-06-11 — UI tornada reativa pra todas as telas.
+
+1. **Topbar mobile (≤ 768px):** os links viram um dropdown sob o botão
+   hambúrguer (`.topbar-burger`); em desktop seguem inline. A topbar **nunca**
+   é escondida (regra acima continua valendo) — só os links colapsam. Ao
+   adicionar um link novo na topbar, ele entra automaticamente no menu mobile.
+2. **Grids fluidos:** use `repeat(auto-fill/fit, minmax(min(Npx, 100%), 1fr))`,
+   **nunca** `minmax(Npx, 1fr)` puro — sem o `min()`, telas mais estreitas que
+   `N` forçam scroll horizontal.
+3. **Tabelas largas:** o wrapper (`.atividade-table-wrapper`) usa
+   `overflow-x: auto` pra rolar no mobile em vez de cortar colunas.
+4. Grupos de pills/ações que podem estourar (`.prompts-filter`, `.privacy-action`,
+   `.admin-subnav`) levam `flex-wrap: wrap`.
+
+### Tema claro / escuro
+
+> Origem: 2026-06-11.
+
+- Tokens do dark vivem em `[data-theme="dark"]` no `index.css` — sobrescrevem só
+  superfície/texto/borda/feedback. A identidade UnB é mantida (verde/azul ganham
+  versões mais claras pra contraste; `--accent` amarelo fica igual). **Não**
+  hard-codar cor que dependa de tema; use os tokens.
+- O atributo `data-theme` é setado por um **script inline no `index.html`** que
+  roda antes do paint (evita flash). Fonte da verdade: `localStorage['psp2:theme']`;
+  default segue o `prefers-color-scheme` do SO. O toggle é o `ThemeToggle.tsx` na topbar.
+- Use `var(--surface)` (alias de `--bg-elevated`) onde antes havia `var(--surface, #fff)`.
 
 ---
 
