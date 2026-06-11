@@ -40,6 +40,8 @@ export interface Profile {
   semestre_atual: string | null;        // "2026.1"
   materias: MateriaPerfil[];
   drive_root_folder_id: string | null;
+  /** Quando o aluno conectou o Drive (migration 0004). Null = nunca conectou. */
+  drive_connected_at?: string | null;
   created_at: string;
   updated_at: string;
 }

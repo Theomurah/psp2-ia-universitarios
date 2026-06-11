@@ -7,11 +7,13 @@
  * inclusão de campo "curso" + horários por matéria; layout em seções (cards).
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ProfileFormSchema, type ProfileForm, DIAS_SEMANA } from '@psp2/shared';
 import { useProfile, useUpdateProfile, MissingCursoColumnError } from '../hooks/useProfile';
+import { startDriveOAuth, useFinishDriveConnection } from '../hooks/useDrive';
 import { useToast } from '../components/Toast';
 import PrivacySection from '../components/PrivacySection';
 import SystemPromptSection from '../components/SystemPromptSection';
@@ -37,6 +39,9 @@ const SIGAA_LOGO =
 const MOODLE_LOGO =
   'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjMwLjg3IDMxNS4xOCI+CiAgPHBhdGggZmlsbD0iI2Y5ODAxMiIgZD0iTTI4OS42MSAzMDkuNzdWMjAxLjUxcTAtMzMuOTQtMjgtMzMuOTV0LTI4LjA2IDMzLjk1djEwOC4yNkgxNzguNFYyMDEuNTFxMC0zMy45NC0yNy41Ny0zMy45NS0yOC4wNSAwLTI4IDMzLjk1djEwOC4yNkg2Ny42N1YxOTUuMTJxMC0zNS40MyAyNC42LTUzLjYzIDIxLjY2LTE2LjI1IDU4LjU2LTE2LjI1IDM3LjQxIDAgNTUuMTIgMTkuMTkgMTUuMjYtMTkuMTkgNTUuNjItMTkuMTkgMzYuOSAwIDU4LjU0IDE2LjI1IDI0LjYgMTguMTkgMjQuNjEgNTMuNjN2MTE0LjY1Wm02NzUuNDktLjVWMGg1NS4xNnYzMDkuMjdabS03MC4zIDB2LTE4LjIycS03LjM5IDkuODQtMjUuMTEgMTUuNzZhOTIuODEgOTIuODEgMCAwIDEtMzAuMDUgNS40MXEtMzkuNCAwLTYzLjI4LTI3LjA5dC0yMy44OS02N2MwLTI2LjI1IDcuNzYtNDguMyAyMy40LTY2IDEzLjg1LTE1LjY1IDM2LjM1LTI2LjU5IDYyLjI5LTI2LjU5IDI5LjIyIDAgNDYuMjggMTEgNTYuNjQgMjMuNjNWMGg1My42OHYzMDkuMjdabTAtMTAyLjkycTAtMTQuNzgtMTQtMjguMzNUODUyIDE2NC40N3EtMjEuMTYgMC0zMy40OCAxNy4yNC0xMC44NSAxNS4zLTEwLjg0IDM3LjQzIDAgMjEuNjggMTAuODQgMzYuOTQgMTIuMyAxNy43NSAzMy40OCAxNy43MyAxMi44MSAwIDI3LjgzLTEyLjA3dDE1LTI0Ljg2Wk02NDguNTcgMzE0LjE5cS00MS44NyAwLTY5LjE5LTI2LjU5VDU1MiAyMTkuMTRxMC00MS44MyAyNy4zNC02OC40NXQ2OS4xOS0yNi41OXE0MS44NSAwIDY5LjQ0IDI2LjU5dDI3LjU4IDY4LjQ1cTAgNDEuODgtMjcuNTggNjguNDZ0LTY5LjQgMjYuNTlabTAtMTQ1Ljc3cS0xOS45NCAwLTMwLjY1IDE1LjF0LTEwLjcxIDM1Ljg4cTAgMjAuNzggMTAgMzUuMTMgMTEuNDYgMTYuMzQgMzEuNCAxNi4zMlQ2ODAgMjU0LjUzcTEwLjQ2LTE0LjM0IDEwLjQ2LTM1LjEzdC0xMC0zNS4xM3EtMTEuNDYtMTUuODYtMzEuODktMTUuODVaTTQ0OS4xMyAzMTQuMTlxLTQxLjg2IDAtNjkuMi0yNi41OXQtMjcuMzMtNjguNDZxMC00MS44MyAyNy4zMy02OC40NXQ2OS4yLTI2LjU5cTQxLjgzIDAgNjkuNDQgMjYuNTl0MjcuNTcgNjguNDVxMCA0MS44OC0yNy41NyA2OC40NnQtNjkuNDQgMjYuNTlabTAtMTQ1Ljc3cS0xOS45NCAwLTMwLjY2IDE1LjF0LTEwLjcxIDM1Ljg4cTAgMjAuNzggMTAgMzUuMTMgMTEuNDYgMTYuMzQgMzEuNDEgMTYuMzJ0MzEuMzktMTYuMzJRNDkxIDI0MC4xOSA0OTEgMjE5LjR0LTEwLTM1LjEzcS0xMS40NC0xNS44Ni0zMS44Ny0xNS44NVptNjM2LjQ1IDY3LjQ3YzEuMTggMTMuMTMgMTguMjUgNDEuMzcgNDYuMzEgNDEuMzcgMjcuMzEgMCA0MC4yMy0xNS43NyA0MC44Ny0yMi4xNmw1OC4xMS0uNWMtNi4zNCAxOS4zOS0zMi4xIDYwLjU4LTEwMCA2MC41OC0yOC4yNCAwLTU0LjA4LTguNzktNzIuNjQtMjYuMzVzLTI3LjgyLTQwLjQ1LTI3LjgyLTY4LjdxMC00My44MyAyNy44Mi02OS42OHQ3Mi4xNi0yNS44NXE0OC4yNSAwIDc1LjM0IDMyIDI1LjEzIDI5LjUzIDI1LjEyIDc5LjI4Wm05MC4xMy0zNGMtMi4zLTExLjgzLTcuMjMtMjEuNDktMTQuNzctMjkuMDZxLTEyLjgyLTEyLjMtMjkuNTUtMTIuMzEtMTcuMjUgMC0yOC44MiAxMS44MnQtMTUuNSAyOS41NVoiLz4KICA8cGF0aCBmaWxsPSIjMzMzIiBkPSJtMTc0Ljc0IDExNi45IDU0Ljc0LTQwLS43LTIuNDRDMTMwIDg2LjU3IDg1LjA4IDk1LjE1IDAgMTQ0LjQ3bC43OSAyLjI0IDYuNzYuMDdjLS42MiA2LjgxLTEuNyAyMy42NC0uMzIgNDguOTUtOS40NCAyNy4zMi0uMjQgNDUuODggOC40IDY2LjA3IDEuMzctMjEgMS4yMy00NC01LjIyLTY2Ljg5LTEuMzUtMjUuMTQtLjI0LTQxLjY3LjM3LTQ4LjFsNTYuNC41NGEyNTggMjU4IDAgMCAwIDEuNjcgMzMuMDZjNTAuNCAxNy43MS0xMDEuMDktLjA2IDEyOC00My43Mi03LjQ3LTguMzctMjIuMTEtMTkuNzktMjIuMTEtMTkuNzlaIi8+Cjwvc3ZnPg==';
 
+const DRIVE_LOGO =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4Ny4zIDc4Ij48cGF0aCBkPSJtNi42IDY2Ljg1IDMuODUgNi42NWMuOCAxLjQgMS45NSAyLjUgMy4zIDMuM2wxMy43NS0yMy44aC0yNy41YzAgMS41NS40IDMuMSAxLjIgNC41eiIgZmlsbD0iIzAwNjZkYSIvPjxwYXRoIGQ9Im00My42NSAyNS0xMy43NS0yMy44Yy0xLjM1LjgtMi41IDEuOS0zLjMgMy4zbC0yNS40IDQ0YTkuMDYgOS4wNiAwIDAgMC0xLjIgNC41aDI3LjV6IiBmaWxsPSIjMDBhYzQ3Ii8+PHBhdGggZD0ibTczLjU1IDc2LjhjMS4zNS0uOCAyLjUtMS45IDMuMy0zLjNsMS42LTIuNzUgNy42NS0xMy4yNWMuOC0xLjQgMS4yLTIuOTUgMS4yLTQuNWgtMjcuNTAybDUuODUyIDExLjV6IiBmaWxsPSIjZWE0MzM1Ii8+PHBhdGggZD0ibTQzLjY1IDI1IDEzLjc1LTIzLjhjLTEuMzUtLjgtMi45LTEuMi00LjUtMS4yaC0xOC41Yy0xLjYgMC0zLjE1LjQ1LTQuNSAxLjJ6IiBmaWxsPSIjMDA4MzJkIi8+PHBhdGggZD0ibTU5LjggNTNoLTMyLjNsLTEzLjc1IDIzLjhjMS4zNS44IDIuOSAxLjIgNC41IDEuMmg1MC44YzEuNiAwIDMuMTUtLjQ1IDQuNS0xLjJ6IiBmaWxsPSIjMjY4NGZjIi8+PHBhdGggZD0ibTczLjQgMjYuNS0xMi43LTIyYy0uOC0xLjQtMS45NS0yLjUtMy4zLTMuM2wtMTMuNzUgMjMuOCAxNi4xNSAyOGgyNy40NWMwLTEuNTUtLjQtMy4xLTEuMi00LjV6IiBmaWxsPSIjZmZiYTAwIi8+PC9zdmc+';
+
 const INTEGRATIONS = [
   { id: 'teams', name: 'Microsoft Teams', logo: TEAMS_LOGO },
   { id: 'aprender3', name: 'Aprender 3', logo: APRENDER3_LOGO },
@@ -48,6 +53,48 @@ export default function SettingsPage() {
   const { data: profile, isLoading } = useProfile();
   const updateProfile = useUpdateProfile();
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const finishDrive = useFinishDriveConnection();
+  // Guard contra dupla execução do effect (StrictMode em dev monta 2x).
+  const driveCallbackHandled = useRef(false);
+
+  const driveConnected = Boolean(profile?.drive_connected_at ?? profile?.drive_root_folder_id);
+
+  useEffect(() => {
+    if (searchParams.get('drive') !== 'callback' || driveCallbackHandled.current) return;
+    driveCallbackHandled.current = true;
+    // Remove o param antes de invocar — um reload no meio não reinvoca a função.
+    setSearchParams((prev) => {
+      prev.delete('drive');
+      return prev;
+    }, { replace: true });
+    finishDrive.mutate(undefined, {
+      onSuccess: (data) => {
+        if (data.warning === 'migration_pending') {
+          toast.warning(
+            'Drive conectado parcialmente',
+            'A migration 0004 ainda não foi aplicada no banco — aplique-a para o upload automático funcionar.',
+          );
+          return;
+        }
+        toast.success(
+          'Google Drive conectado',
+          'Seus documentos processados serão organizados na pasta "PSP2 - Estudos".',
+        );
+      },
+      onError: (err) => {
+        toast.error('Não foi possível conectar o Drive', (err as Error).message);
+      },
+    });
+  }, [searchParams]);
+
+  const onConnectDrive = async () => {
+    try {
+      await startDriveOAuth();
+    } catch (err) {
+      toast.error('Não foi possível iniciar a conexão', (err as Error).message);
+    }
+  };
 
   const { register, control, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting, isDirty } } = useForm<ProfileForm>({
     resolver: zodResolver(ProfileFormSchema),
@@ -246,6 +293,31 @@ export default function SettingsPage() {
         </p>
 
         <div className="integration-grid">
+          <button
+            type="button"
+            className="integration-card"
+            onClick={onConnectDrive}
+            disabled={finishDrive.isPending}
+            aria-label={
+              driveConnected
+                ? 'Google Drive conectado — clique para reconectar'
+                : 'Conectar Google Drive'
+            }
+          >
+            <img src={DRIVE_LOGO} alt="" className="integration-logo" />
+            <span className="integration-name">Google Drive</span>
+            {finishDrive.isPending ? (
+              <span className="badge tone-info">Conectando…</span>
+            ) : driveConnected ? (
+              <span className="badge tone-success">
+                {profile?.drive_connected_at
+                  ? `Conectado em ${new Date(profile.drive_connected_at).toLocaleDateString('pt-BR')}`
+                  : 'Conectado'}
+              </span>
+            ) : (
+              <span className="badge tone-info">Conectar</span>
+            )}
+          </button>
           {INTEGRATIONS.map((it) => (
             <button
               key={it.id}
