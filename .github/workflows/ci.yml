@@ -6,9 +6,12 @@ on:
   push:
     branches: [main, dev]
 
+permissions:
+  contents: read
+
 jobs:
   validate:
-    name: Lint, Typecheck, Build
+    name: Lint, Typecheck, Test, Build
     runs-on: ubuntu-latest
 
     steps:
@@ -24,8 +27,66 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Lint
+        run: npm run lint --if-present
+
       - name: Typecheck
         run: npm run typecheck
 
+      # --coverage gera relatório em coverage/ via v8 (config em vitest.config.ts).
+      # Sem threshold por enquanto — primeiro precisamos medir baseline. Depois
+      # de N runs, fixar lines>=70% / functions>=60% (ver auditoria F-12).
+      # Origem: auditoria 2026-05-26 (Agente 5 — Testes, F-05).
+      - name: Tests (vitest --coverage)
+        run: npm test -- --coverage
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+          if-no-files-found: ignore
+
       - name: Build
         run: npm run build
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install (with dev)
+        run: npm ci
+
+      # Falha em vulnerabilidade alta ou crítica; moderate/low só avisa.
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+
+  codeql:
+    name: CodeQL static analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3

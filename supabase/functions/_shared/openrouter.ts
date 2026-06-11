@@ -28,6 +28,8 @@ export interface LLMCallOptions {
   max_tokens?: number;
   response_format?: { type: 'json_object' };
   stream?: boolean;
+  /** Timeout do request em ms. Default: env OPENROUTER_TIMEOUT_MS ou 120s. */
+  timeout_ms?: number;
 }
 
 export interface LLMCallResult {
@@ -51,6 +53,20 @@ export class OpenRouterError extends Error {
 }
 
 /**
+ * Timeout default generoso (síntese de docs grandes pode demorar).
+ * Configurável por env OPENROUTER_TIMEOUT_MS, ou por chamada via opts.timeout_ms.
+ * Origem: auditoria 2026-06-10 (SHARED-FUNCTIONS-06) — fetch pendurado deixava
+ * o job preso em 'processing' até o isolate ser morto.
+ */
+const DEFAULT_TIMEOUT_MS = 120_000;
+
+function resolveTimeoutMs(opts: LLMCallOptions): number {
+  if (opts.timeout_ms != null && opts.timeout_ms > 0) return opts.timeout_ms;
+  const fromEnv = Number(Deno.env.get('OPENROUTER_TIMEOUT_MS') ?? '');
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : DEFAULT_TIMEOUT_MS;
+}
+
+/**
  * Faz uma chamada de chat completion via OpenRouter.
  * Lê OPENROUTER_API_KEY do env. Retorna conteúdo + métricas de uso/custo.
  */
@@ -66,19 +82,34 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMCallResult> {
     temperature: opts.temperature ?? 0.2,
     max_tokens: opts.max_tokens ?? 4096,
     stream: opts.stream ?? false,
+    // Usage accounting: pede o custo na resposta (campo usage.cost).
+    // Sem isso, a API só retorna tokens — e cost_usd ficava sempre 0.
+    usage: { include: true },
   };
   if (opts.response_format) body.response_format = opts.response_format;
 
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://github.com/Theomurah/psp2-ia-universitarios',
-      'X-Title': 'PSP2 IA Universitários',
-    },
-    body: JSON.stringify(body),
-  });
+  const timeoutMs = resolveTimeoutMs(opts);
+  let res: Response;
+  try {
+    res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://github.com/Theomurah/psp2-ia-universitarios',
+        'X-Title': 'PSP2 IA Universitários',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    // AbortSignal.timeout rejeita com DOMException TimeoutError/AbortError.
+    // Convertemos pra OpenRouterError 408 — tratado como transitório no retry.
+    if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      throw new OpenRouterError(`OpenRouter timeout após ${timeoutMs}ms`, 408);
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => '');
@@ -101,8 +132,10 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMCallResult> {
     model: data.model,
     tokens_input: data.usage?.prompt_tokens ?? 0,
     tokens_output: data.usage?.completion_tokens ?? 0,
-    // OpenRouter manda total_cost em algumas respostas; senão calcular fora.
-    cost_usd: data.usage?.total_cost ?? 0,
+    // Com `usage: { include: true }` no request, o custo vem em usage.cost.
+    // `total_cost` nunca foi um campo da API (bug histórico — custo sempre 0);
+    // mantido só como fallback defensivo pra proxies/respostas antigas.
+    cost_usd: data.usage?.cost ?? data.usage?.total_cost ?? 0,
     finish_reason: choice.finish_reason ?? 'unknown',
   };
 }
@@ -120,12 +153,36 @@ export function parseJsonFromLLM<T = unknown>(content: string): T {
   try {
     return JSON.parse(cleaned) as T;
   } catch (err) {
+    // NUNCA embutir o content (nem a mensagem do JSON.parse, que no V8 cita
+    // trechos do texto) na message — ela flui pra logs de plataforma e
+    // error_reason, e o content deriva de documento do aluno (CLAUDE.md).
+    // O detalhe vai no `body`, que fromError() nunca serializa.
     throw new OpenRouterError(
-      `LLM retornou JSON inválido: ${(err as Error).message}\nContent: ${content.slice(0, 200)}`,
+      `LLM retornou JSON inválido (content_length=${content.length})`,
       502,
+      {
+        parse_error: (err as Error).message,
+        content_snippet: content.slice(0, 200),
+      },
     );
   }
 }
+
+/**
+ * Callback opcional disparado a cada retry transitório.
+ * Permite que o caller registre o evento em job_events (event_type='retry')
+ * ou em qualquer outro sink — sem acoplar este módulo ao Supabase.
+ * Origem: auditoria 2026-05-26 (Agente 4 — Observabilidade, A11).
+ */
+export interface RetryInfo {
+  attempt: number;
+  maxAttempts: number;
+  status: number;
+  delayMs: number;
+  message: string;
+  model: string;
+}
+export type OnRetryCallback = (info: RetryInfo) => void | Promise<void>;
 
 /**
  * Retry com backoff exponencial.
@@ -134,6 +191,7 @@ export function parseJsonFromLLM<T = unknown>(content: string): T {
 export async function callLLMWithRetry(
   opts: LLMCallOptions,
   maxAttempts = 3,
+  onRetry?: OnRetryCallback,
 ): Promise<LLMCallResult> {
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -141,11 +199,26 @@ export async function callLLMWithRetry(
       return await callLLM(opts);
     } catch (err) {
       lastError = err as Error;
+      // 408 = timeout do nosso AbortSignal (callLLM converte TimeoutError).
       const isTransient =
         err instanceof OpenRouterError &&
-        (err.status === 429 || err.status >= 500);
+        (err.status === 429 || err.status === 408 || err.status >= 500);
       if (!isTransient || attempt === maxAttempts) throw err;
       const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      if (onRetry) {
+        try {
+          await onRetry({
+            attempt,
+            maxAttempts,
+            status: (err as OpenRouterError).status,
+            delayMs,
+            message: (err as Error).message,
+            model: opts.model,
+          });
+        } catch {
+          // onRetry não deve quebrar o pipeline — só observabilidade
+        }
+      }
       await new Promise((r) => setTimeout(r, delayMs));
     }
   }

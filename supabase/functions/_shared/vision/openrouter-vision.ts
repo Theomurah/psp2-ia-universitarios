@@ -63,6 +63,11 @@ export class OpenRouterVisionProvider implements VisionProvider {
       const warnings: string[] = [];
       if (text.length < 20) warnings.push('Pouco texto extraído (imagem pode estar vazia ou ilegível).');
       if (text.includes('[ilegível]')) warnings.push('Modelo marcou trechos como ilegíveis.');
+      // Auditoria 2026-06-10 (SHARED-FUNCTIONS-03): saída cortada por
+      // max_tokens não pode passar silenciosamente como extração completa.
+      if (res.finish_reason === 'length') {
+        warnings.push('Extração truncada por max_tokens (finish_reason=length) — texto pode estar incompleto.');
+      }
 
       return {
         text,

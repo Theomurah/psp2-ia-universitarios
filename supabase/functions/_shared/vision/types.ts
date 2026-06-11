@@ -51,7 +51,8 @@ export class VisionError extends Error {
   constructor(
     message: string,
     public provider: string,
-    public cause?: unknown,
+    // `override`: Error já declara `cause` no ES2022 (exigido pelo deno check)
+    public override cause?: unknown,
   ) {
     super(message);
     this.name = 'VisionError';

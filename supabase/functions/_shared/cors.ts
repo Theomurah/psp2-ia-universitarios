@@ -1,15 +1,50 @@
 /**
- * CORS headers padrão para todas as Edge Functions.
+ * CORS — whitelist explícita por origin, com echo seguro.
+ *
+ * Configurável via env var ALLOWED_ORIGINS (CSV). Sem env, libera apenas
+ * localhost (dev). Em produção, defina:
+ *   supabase secrets set ALLOWED_ORIGINS="https://app.seu-dominio.com,https://staging.seu-dominio.com"
+ *
+ * NUNCA voltar para Access-Control-Allow-Origin: * — ver auditoria.
  */
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-};
 
-export function handleCorsPrefligh(req: Request): Response | null {
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:5173',
+];
+
+function getAllowedOrigins(): string[] {
+  const env = Deno.env.get('ALLOWED_ORIGINS');
+  if (!env) return DEFAULT_ALLOWED_ORIGINS;
+  return env.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * Retorna headers CORS específicos pra esta request:
+ * - ecoa o Origin se estiver na whitelist
+ * - caso contrário, retorna string vazia (browser bloqueia explicitamente)
+ *
+ * Antes voltávamos `allowed[0]` como fallback, mas isso poluía logs com
+ * origens que pareciam liberadas mas não eram. Vazio = bloqueio claro.
+ * Origem: auditoria 2026-05-26 (Agente 1, achado B4).
+ */
+export function corsHeadersFor(req: Request): Record<string, string> {
+  const origin = req.headers.get('Origin') ?? '';
+  const allowed = getAllowedOrigins();
+  const allowedOrigin = allowed.includes(origin) ? origin : '';
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
+  };
+}
+
+export function handleCorsPreflight(req: Request): Response | null {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeadersFor(req) });
   }
   return null;
 }
