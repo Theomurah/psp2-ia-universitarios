@@ -9,6 +9,7 @@
 import { FEEDBACK_TOPIC_LABELS } from '@psp2/shared';
 import { useAdminFeedbackOverview } from '../../hooks/useFeedback';
 import { fmtDate } from '../../lib/format';
+import { useAdminPrefs } from '../../hooks/useAdminPrefs';
 
 function ratingTone(r: number): 'success' | 'warn' | 'error' {
   if (r >= 4) return 'success';
@@ -17,7 +18,8 @@ function ratingTone(r: number): 'success' | 'warn' | 'error' {
 }
 
 export default function AdminFeedback() {
-  const { data, isLoading, error } = useAdminFeedbackOverview();
+  const { includeTest } = useAdminPrefs();
+  const { data, isLoading, error } = useAdminFeedbackOverview(includeTest);
 
   if (isLoading) {
     return (

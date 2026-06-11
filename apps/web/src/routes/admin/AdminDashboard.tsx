@@ -27,6 +27,7 @@ import Sparkline from './Sparkline';
 import PipelineFunnel from './PipelineFunnel';
 import AlertBanner from './AlertBanner';
 import TrendBadge from './TrendBadge';
+import { useAdminPrefs } from '../../hooks/useAdminPrefs';
 
 const PERIODS = [7, 14, 30, 90] as const;
 type Period = (typeof PERIODS)[number];
@@ -60,14 +61,15 @@ const EVENT_TONE: Record<string, string> = {
 export default function AdminDashboard() {
   const [period, setPeriod] = useState<Period>(30);
   const qc = useQueryClient();
+  const { includeTest } = useAdminPrefs();
 
-  const { data: m, isLoading, error, isFetching, dataUpdatedAt } = useAdminMetricsOverview(period);
-  const { data: alerts } = useAdminAlerts();
-  const { data: jobs } = useAdminRecentJobs(15);
-  const { data: timeseries } = useAdminTimeseries(period);
-  const { data: topUsers } = useAdminTopUsers(8);
-  const { data: pipeline } = useAdminPipelineBreakdown();
-  const { data: materias } = useAdminMateriaDistribution();
+  const { data: m, isLoading, error, isFetching, dataUpdatedAt } = useAdminMetricsOverview(period, includeTest);
+  const { data: alerts } = useAdminAlerts(includeTest);
+  const { data: jobs } = useAdminRecentJobs(15, includeTest);
+  const { data: timeseries } = useAdminTimeseries(period, includeTest);
+  const { data: topUsers } = useAdminTopUsers(8, includeTest);
+  const { data: pipeline } = useAdminPipelineBreakdown(includeTest);
+  const { data: materias } = useAdminMateriaDistribution(includeTest);
 
   // Tick de 30s só pra re-renderizar o rótulo relativo "atualizado há X" —
   // sem ele o texto congela entre polls (achado WEB-ROUTES-02).

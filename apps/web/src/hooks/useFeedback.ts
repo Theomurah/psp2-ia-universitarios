@@ -82,11 +82,11 @@ export interface AdminFeedbackOverview {
   }[];
 }
 
-export function useAdminFeedbackOverview() {
+export function useAdminFeedbackOverview(includeTest = false) {
   return useQuery({
-    queryKey: ['admin', 'feedback'],
+    queryKey: ['admin', 'feedback', includeTest],
     queryFn: async (): Promise<AdminFeedbackOverview> => {
-      const { data, error } = await supabase.rpc('admin_feedback_overview');
+      const { data, error } = await supabase.rpc('admin_feedback_overview', { p_include_test: includeTest });
       if (error) throw new Error(error.message);
       return data as AdminFeedbackOverview;
     },

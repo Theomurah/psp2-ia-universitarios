@@ -55,11 +55,11 @@ export interface AdminRecentUser {
   created_at: string;
 }
 
-export function useAdminMetricsOverview(days = 30) {
+export function useAdminMetricsOverview(days = 30, includeTest = false) {
   return useQuery({
-    queryKey: ['admin', 'metrics_overview', days],
+    queryKey: ['admin', 'metrics_overview', days, includeTest],
     queryFn: async (): Promise<AdminMetrics> => {
-      const { data, error } = await supabase.rpc('admin_metrics_overview', { p_days: days });
+      const { data, error } = await supabase.rpc('admin_metrics_overview', { p_days: days, p_include_test: includeTest });
       if (error) throw new Error(error.message);
       return data as AdminMetrics;
     },
@@ -67,11 +67,11 @@ export function useAdminMetricsOverview(days = 30) {
   });
 }
 
-export function useAdminAlerts() {
+export function useAdminAlerts(includeTest = false) {
   return useQuery({
-    queryKey: ['admin', 'alerts'],
+    queryKey: ['admin', 'alerts', includeTest],
     queryFn: async (): Promise<AdminAlerts> => {
-      const { data, error } = await supabase.rpc('admin_alerts');
+      const { data, error } = await supabase.rpc('admin_alerts', { p_include_test: includeTest });
       if (error) throw new Error(error.message);
       return data as AdminAlerts;
     },
@@ -91,11 +91,11 @@ export function useAdminJobEvents(jobId: string | null) {
   });
 }
 
-export function useAdminRecentJobs(limit = 20) {
+export function useAdminRecentJobs(limit = 20, includeTest = false) {
   return useQuery({
-    queryKey: ['admin', 'recent_jobs', limit],
+    queryKey: ['admin', 'recent_jobs', limit, includeTest],
     queryFn: async (): Promise<AdminRecentJob[]> => {
-      const { data, error } = await supabase.rpc('admin_recent_jobs', { p_limit: limit });
+      const { data, error } = await supabase.rpc('admin_recent_jobs', { p_limit: limit, p_include_test: includeTest });
       if (error) throw new Error(error.message);
       return (data ?? []) as AdminRecentJob[];
     },
@@ -103,11 +103,11 @@ export function useAdminRecentJobs(limit = 20) {
   });
 }
 
-export function useAdminRecentUsers(limit = 20) {
+export function useAdminRecentUsers(limit = 20, includeTest = false) {
   return useQuery({
-    queryKey: ['admin', 'recent_users', limit],
+    queryKey: ['admin', 'recent_users', limit, includeTest],
     queryFn: async (): Promise<AdminRecentUser[]> => {
-      const { data, error } = await supabase.rpc('admin_recent_users', { p_limit: limit });
+      const { data, error } = await supabase.rpc('admin_recent_users', { p_limit: limit, p_include_test: includeTest });
       if (error) throw new Error(error.message);
       return (data ?? []) as AdminRecentUser[];
     },
@@ -122,11 +122,11 @@ export interface TimeseriesPoint {
   cost_usd: number;
 }
 
-export function useAdminTimeseries(days = 14) {
+export function useAdminTimeseries(days = 14, includeTest = false) {
   return useQuery({
-    queryKey: ['admin', 'timeseries', days],
+    queryKey: ['admin', 'timeseries', days, includeTest],
     queryFn: async (): Promise<TimeseriesPoint[]> => {
-      const { data, error } = await supabase.rpc('admin_metrics_timeseries', { p_days: days });
+      const { data, error } = await supabase.rpc('admin_metrics_timeseries', { p_days: days, p_include_test: includeTest });
       if (error) throw new Error(error.message);
       return (data ?? []) as TimeseriesPoint[];
     },
@@ -145,11 +145,11 @@ export interface AdminTopUser {
   last_activity: string;
 }
 
-export function useAdminTopUsers(limit = 10) {
+export function useAdminTopUsers(limit = 10, includeTest = false) {
   return useQuery({
-    queryKey: ['admin', 'top_users', limit],
+    queryKey: ['admin', 'top_users', limit, includeTest],
     queryFn: async (): Promise<AdminTopUser[]> => {
-      const { data, error } = await supabase.rpc('admin_top_users', { p_limit: limit });
+      const { data, error } = await supabase.rpc('admin_top_users', { p_limit: limit, p_include_test: includeTest });
       if (error) throw new Error(error.message);
       return (data ?? []) as AdminTopUser[];
     },
@@ -167,11 +167,11 @@ export interface PipelineBreakdown {
   avg_duration_seconds: number;
 }
 
-export function useAdminPipelineBreakdown() {
+export function useAdminPipelineBreakdown(includeTest = false) {
   return useQuery({
-    queryKey: ['admin', 'pipeline'],
+    queryKey: ['admin', 'pipeline', includeTest],
     queryFn: async (): Promise<PipelineBreakdown> => {
-      const { data, error } = await supabase.rpc('admin_pipeline_breakdown');
+      const { data, error } = await supabase.rpc('admin_pipeline_breakdown', { p_include_test: includeTest });
       if (error) throw new Error(error.message);
       return data as PipelineBreakdown;
     },
@@ -185,11 +185,11 @@ export interface MateriaDistribution {
   user_count: number;
 }
 
-export function useAdminMateriaDistribution() {
+export function useAdminMateriaDistribution(includeTest = false) {
   return useQuery({
-    queryKey: ['admin', 'materia_dist'],
+    queryKey: ['admin', 'materia_dist', includeTest],
     queryFn: async (): Promise<MateriaDistribution[]> => {
-      const { data, error } = await supabase.rpc('admin_materia_distribution');
+      const { data, error } = await supabase.rpc('admin_materia_distribution', { p_include_test: includeTest });
       if (error) throw new Error(error.message);
       return (data ?? []) as MateriaDistribution[];
     },
