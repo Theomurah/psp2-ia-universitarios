@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   uploadFile,
   uploadMarkdown,
+  updateFile,
+  updateMarkdown,
   DriveAuthExpiredError,
   DriveError,
 } from '../drive/index.ts';
@@ -97,6 +99,60 @@ describe('uploadMarkdown', () => {
     const text = new TextDecoder().decode(bodyAsBytes);
     expect(text).toContain('Content-Type: text/markdown');
     expect(text).toContain('# Título');
+  });
+});
+
+describe('updateFile (reprocessamento)', () => {
+  it('faz PATCH multipart no fileId com name + trashed:false no metadata', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 'FILE_ID',
+          name: 'aula-v2.md',
+          webViewLink: 'https://drive.google.com/file/d/FILE_ID',
+          parents: ['FOLDER_ID'],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const r = await updateFile({
+      accessToken,
+      fileId: 'FILE_ID',
+      filename: 'aula-v2.md',
+      content: '# conteúdo novo',
+      mimeType: 'text/markdown',
+    });
+
+    expect(r.id).toBe('FILE_ID');
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/files/FILE_ID?uploadType=multipart');
+    expect(init.method).toBe('PATCH');
+
+    const text = new TextDecoder().decode(init.body as Uint8Array);
+    expect(text).toContain('"name":"aula-v2.md"');
+    expect(text).toContain('"trashed":false');
+    expect(text).not.toContain('parents'); // update não aceita parents no metadata
+    expect(text).toContain('# conteúdo novo');
+  });
+
+  it('lança DriveError 404 se o arquivo foi apagado em definitivo (sem retry)', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('File not found', { status: 404 }));
+
+    await expect(
+      updateMarkdown({ accessToken, fileId: 'GONE', filename: 'x.md', markdown: 'x' }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(fetchSpy).toHaveBeenCalledTimes(1); // 404 não é retentável
+  });
+
+  it('lança DriveAuthExpiredError em 401', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('', { status: 401 }));
+    await expect(
+      updateMarkdown({ accessToken, fileId: 'F', filename: 'x.md', markdown: 'x' }),
+    ).rejects.toThrowError(DriveAuthExpiredError);
   });
 });
 

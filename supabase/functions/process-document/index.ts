@@ -37,6 +37,7 @@ import { CHUNK_THRESHOLD } from '../_shared/chunking.ts';
 import {
   ensureFolderPath,
   uploadMarkdown,
+  updateMarkdown,
   ensureFreshToken,
   DriveAuthExpiredError,
   DriveError,
@@ -600,6 +601,7 @@ async function runPipeline(jobId: string): Promise<void> {
       filename: filenameFinal,
       markdown: synth.result.markdown,
       pathSegments: [profile.semestre_atual ?? '2026.1', materiaNome],
+      existingFileId: doc.drive_file_id ?? null,
       service,
     });
 
@@ -697,10 +699,12 @@ async function tryUploadToDrive(args: {
   filename: string;
   markdown: string;
   pathSegments: string[];
+  /** drive_file_id de upload anterior — reprocessamento atualiza in-place. */
+  existingFileId: string | null;
   // deno-lint-ignore no-explicit-any
   service: any;
 }): Promise<DriveAttemptResult> {
-  const { profile, filename, markdown, pathSegments, service } = args;
+  const { profile, filename, markdown, pathSegments, existingFileId, service } = args;
 
   // Defesa em profundidade: aborta upload se markdown for absurdamente grande.
   // Síntese normal raramente passa de 50-100 KB; > 1 MB é alucinação do LLM
@@ -738,7 +742,8 @@ async function tryUploadToDrive(args: {
     return { skipped: false, error: `refresh falhou: ${(err as Error).message}` };
   }
 
-  // Persiste eventuais novos tokens (Google às vezes rotaciona).
+  // Persiste eventuais novos tokens (Google às vezes rotaciona — inclusive o
+  // refresh_token; descartá-lo quebraria todo refresh futuro até reconectar).
   // ATENÇÃO: PostgrestBuilder só implementa `then` — chamar `.catch()` nele
   // lançava TypeError sempre que o refresh acontecia (qualquer upload >1h
   // após conectar o Drive), derrubando o pipeline inteiro DEPOIS do custo
@@ -748,6 +753,7 @@ async function tryUploadToDrive(args: {
   if (token.access_token !== profile.google_access_token) {
     const { error: tokenPersistErr } = await service.from('profiles').update({
       google_access_token: token.access_token,
+      google_refresh_token: token.refresh_token,
       google_token_expires_at: new Date(token.expires_at).toISOString(),
     }).eq('id', profile.id);
     if (tokenPersistErr) {
@@ -758,6 +764,24 @@ async function tryUploadToDrive(args: {
 
   const t0 = Date.now();
   try {
+    // Reprocessamento: se o doc já subiu antes, atualiza o arquivo in-place
+    // (PATCH) em vez de criar duplicata — o Drive aceita nomes repetidos na
+    // mesma pasta e o drive_file_id antigo ficaria órfão.
+    if (existingFileId) {
+      try {
+        const updated = await updateMarkdown({
+          accessToken: token.access_token,
+          fileId: existingFileId,
+          filename,
+          markdown,
+        });
+        return { skipped: false, file_id: updated.id, duration_ms: Date.now() - t0 };
+      } catch (err) {
+        // 404 = arquivo apagado em definitivo no Drive — cai pro fluxo de criação
+        if (!(err instanceof DriveError) || err.status !== 404) throw err;
+      }
+    }
+
     const folderId = await ensureFolderPath(
       profile.drive_root_folder_id,
       pathSegments,

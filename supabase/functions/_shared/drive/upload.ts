@@ -222,3 +222,94 @@ export async function uploadMarkdown(
     mimeType: 'text/markdown',
   });
 }
+
+export interface UpdateOptions {
+  accessToken: string;
+  /** Id do arquivo existente no Drive a sobrescrever. */
+  fileId: string;
+  /** Nome final (pode ter mudado em reclassificação). */
+  filename: string;
+  content: Uint8Array | string;
+  mimeType?: string;
+}
+
+/**
+ * Atualiza conteúdo + nome de um arquivo existente (PATCH multipart).
+ * Usado em reprocessamento: sem isso, cada re-run criaria uma duplicata —
+ * o Drive aceita múltiplos arquivos com o mesmo nome na mesma pasta.
+ *
+ * `parents` não entra no metadata de update (a API exige addParents/
+ * removeParents via query param); o arquivo permanece na pasta original.
+ * `trashed: false` restaura o arquivo se o aluno o tiver enviado pra lixeira —
+ * mesmo efeito que o create teria.
+ *
+ * Lança DriveError 404 se o arquivo foi apagado em definitivo — caller deve
+ * cair pro fluxo de criação.
+ */
+export async function updateFile(opts: UpdateOptions): Promise<DriveFileUploadResult> {
+  const mimeType = opts.mimeType ?? 'text/markdown';
+  const bodyContent = normalizeContent(opts.content);
+  const metadata = { name: opts.filename, mimeType, trashed: false };
+
+  const boundary = `psp2-${crypto.randomUUID()}`;
+  const encoder = new TextEncoder();
+
+  const head =
+    `--${boundary}\r\n` +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(metadata) +
+    '\r\n' +
+    `--${boundary}\r\n` +
+    `Content-Type: ${mimeType}\r\n\r\n`;
+  const tail = `\r\n--${boundary}--`;
+
+  const headBytes = encoder.encode(head);
+  const tailBytes = encoder.encode(tail);
+  const body = new Uint8Array(headBytes.length + bodyContent.length + tailBytes.length);
+  body.set(headBytes, 0);
+  body.set(bodyContent, headBytes.length);
+  body.set(tailBytes, headBytes.length + bodyContent.length);
+
+  const url = `${DRIVE_UPLOAD}/${opts.fileId}?uploadType=multipart&fields=id,name,webViewLink,parents`;
+
+  return withRetry(async () => {
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${opts.accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    });
+
+    if (res.status === 401) throw new DriveAuthExpiredError();
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new DriveError(`updateFile ${res.status}: ${errBody}`, res.status, errBody);
+    }
+
+    // deno-lint-ignore no-explicit-any
+    const data: any = await res.json();
+    return {
+      id: data.id,
+      name: data.name,
+      webViewLink: data.webViewLink,
+      parents: data.parents,
+    };
+  });
+}
+
+/**
+ * Update de string Markdown — espelho do uploadMarkdown pro caminho de update.
+ */
+export async function updateMarkdown(
+  opts: Omit<UpdateOptions, 'mimeType' | 'content'> & { markdown: string },
+): Promise<DriveFileUploadResult> {
+  return updateFile({
+    accessToken: opts.accessToken,
+    fileId: opts.fileId,
+    filename: opts.filename,
+    content: opts.markdown,
+    mimeType: 'text/markdown',
+  });
+}
