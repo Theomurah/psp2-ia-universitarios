@@ -6,7 +6,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { callLLM, callLLMWithRetry, parseJsonFromLLM, OpenRouterError } from '../openrouter.ts';
+import {
+  callLLM,
+  callLLMWithRetry,
+  parseJsonFromLLM,
+  resolveMaxOutputTokens,
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  OpenRouterError,
+} from '../openrouter.ts';
 
 const okBody = {
   choices: [
@@ -25,6 +32,46 @@ beforeEach(() => {
 
 afterEach(() => {
   Deno.env.delete('OPENROUTER_API_KEY');
+  Deno.env.delete('OPENAI_API_KEY');
+  Deno.env.delete('ANTHROPIC_API_KEY');
+  Deno.env.delete('GEMINI_API_KEY');
+  Deno.env.delete('LLM_BASE_URL');
+  Deno.env.delete('LLM_API_KEY');
+  Deno.env.delete('LLM_MAX_OUTPUT_TOKENS');
+});
+
+describe('resolveMaxOutputTokens (cost guard)', () => {
+  it('sem env → usa o default como teto, preservando pedidos menores', () => {
+    expect(resolveMaxOutputTokens(512)).toBe(512);
+    expect(resolveMaxOutputTokens(8192)).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
+    expect(resolveMaxOutputTokens(undefined)).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
+  });
+
+  it('clampa o pedido do estágio ao teto do env', () => {
+    Deno.env.set('LLM_MAX_OUTPUT_TOKENS', '1000');
+    expect(resolveMaxOutputTokens(8192)).toBe(1000); // synthesize cortado
+    expect(resolveMaxOutputTokens(512)).toBe(512);   // classify intacto
+    expect(resolveMaxOutputTokens(undefined)).toBe(1000);
+  });
+
+  it('env inválido/zero/negativo → ignora e cai no default', () => {
+    for (const bad of ['abc', '0', '-5', '']) {
+      Deno.env.set('LLM_MAX_OUTPUT_TOKENS', bad);
+      expect(resolveMaxOutputTokens(8192)).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
+    }
+  });
+
+  it('callLLM aplica o teto no body enviado ao provider', async () => {
+    Deno.env.set('LLM_MAX_OUTPUT_TOKENS', '256');
+    await callLLM({
+      model: 'anthropic/claude-haiku-4.5',
+      messages: [{ role: 'user', content: 'oi' }],
+      max_tokens: 8192,
+    });
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string);
+    expect(body.max_tokens).toBe(256);
+  });
 });
 
 describe('callLLM', () => {
@@ -62,6 +109,115 @@ describe('callLLM', () => {
     await expect(
       callLLM({ model: 'x', messages: [{ role: 'user', content: 'oi' }] }),
     ).rejects.toMatchObject({ status: 429 });
+  });
+});
+
+describe('roteamento por provider', () => {
+  function lastCall() {
+    const calls = vi.mocked(fetch).mock.calls;
+    const call = calls[calls.length - 1];
+    return {
+      url: call[0] as string,
+      init: call[1] as RequestInit,
+      headers: (call[1] as RequestInit).headers as Record<string, string>,
+      body: JSON.parse((call[1] as RequestInit).body as string),
+    };
+  }
+
+  it('openai/ com OPENAI_API_KEY → API nativa da OpenAI, sem prefixo', async () => {
+    Deno.env.set('OPENAI_API_KEY', 'sk-openai');
+    await callLLM({ model: 'openai/gpt-4o-mini', messages: [{ role: 'user', content: 'oi' }] });
+
+    const c = lastCall();
+    expect(c.url).toBe('https://api.openai.com/v1/chat/completions');
+    expect(c.headers.Authorization).toBe('Bearer sk-openai');
+    expect(c.headers['HTTP-Referer']).toBeUndefined();
+    expect(c.body.model).toBe('gpt-4o-mini'); // prefixo removido
+    expect(c.body.temperature).toBe(0.2);
+  });
+
+  it('modelo de raciocínio (gpt-5*) usa max_completion_tokens + reasoning_effort, sem temperature', async () => {
+    Deno.env.set('OPENAI_API_KEY', 'sk-openai');
+    await callLLM({
+      model: 'openai/gpt-5-mini',
+      messages: [{ role: 'user', content: 'oi' }],
+      max_tokens: 512,
+    });
+
+    const c = lastCall();
+    expect(c.body.max_completion_tokens).toBe(2048); // floor aplicado
+    expect(c.body.reasoning_effort).toBe('low');
+    expect(c.body.temperature).toBeUndefined();
+    expect(c.body.max_tokens).toBeUndefined();
+  });
+
+  it('openai/ SEM OPENAI_API_KEY → cai no OpenRouter com a string completa', async () => {
+    // só OPENROUTER_API_KEY está setado (beforeEach)
+    await callLLM({ model: 'openai/gpt-4o-mini', messages: [{ role: 'user', content: 'oi' }] });
+
+    const c = lastCall();
+    expect(c.url).toBe('https://openrouter.ai/api/v1/chat/completions');
+    expect(c.body.model).toBe('openai/gpt-4o-mini'); // prefixo preservado
+    expect(c.headers['X-Title']).toMatch(/PSP2/);
+  });
+
+  it('anthropic/ com ANTHROPIC_API_KEY → /v1/messages, x-api-key, system extraído', async () => {
+    Deno.env.set('ANTHROPIC_API_KEY', 'sk-ant');
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          content: [{ type: 'text', text: 'resposta claude' }],
+          model: 'claude-haiku-4-5',
+          usage: { input_tokens: 7, output_tokens: 3 },
+          stop_reason: 'end_turn',
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const res = await callLLM({
+      model: 'anthropic/claude-haiku-4-5',
+      messages: [
+        { role: 'system', content: 'Você é um assistente.' },
+        { role: 'user', content: 'oi' },
+      ],
+      response_format: { type: 'json_object' },
+    });
+
+    expect(res.content).toBe('resposta claude');
+    expect(res.tokens_input).toBe(7);
+    expect(res.tokens_output).toBe(3);
+
+    const c = lastCall();
+    expect(c.url).toBe('https://api.anthropic.com/v1/messages');
+    expect(c.headers['x-api-key']).toBe('sk-ant');
+    expect(c.headers['anthropic-version']).toBe('2023-06-01');
+    expect(c.body.model).toBe('claude-haiku-4-5');
+    expect(c.body.messages).toEqual([{ role: 'user', content: 'oi' }]); // system saiu
+    expect(c.body.system).toContain('Você é um assistente.');
+    expect(c.body.system).toContain('JSON válido'); // reforço do json_object
+  });
+
+  it('google/ com GEMINI_API_KEY → endpoint OpenAI-compat do Gemini', async () => {
+    Deno.env.set('GEMINI_API_KEY', 'sk-gem');
+    await callLLM({ model: 'google/gemini-2.5-flash', messages: [{ role: 'user', content: 'oi' }] });
+
+    const c = lastCall();
+    expect(c.url).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+    expect(c.headers.Authorization).toBe('Bearer sk-gem');
+    expect(c.body.model).toBe('gemini-2.5-flash');
+  });
+
+  it('LLM_BASE_URL custom → endpoint próprio com a string completa', async () => {
+    Deno.env.delete('OPENROUTER_API_KEY');
+    Deno.env.set('LLM_BASE_URL', 'https://api.openai.com/v1/');
+    Deno.env.set('LLM_API_KEY', 'sk-custom');
+    await callLLM({ model: 'gpt-5-mini', messages: [{ role: 'user', content: 'oi' }], max_tokens: 256 });
+
+    const c = lastCall();
+    expect(c.url).toBe('https://api.openai.com/v1/chat/completions'); // barra final normalizada
+    expect(c.headers.Authorization).toBe('Bearer sk-custom');
+    expect(c.body.max_completion_tokens).toBe(2048); // reasoning detectado no custom (floor)
   });
 });
 

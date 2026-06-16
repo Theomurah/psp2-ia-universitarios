@@ -6,6 +6,13 @@ import type { Profile, MateriaPerfil } from '@psp2/shared';
 
 const log = createLogger('profile');
 
+// Colunas que o front realmente usa. NÃO usar select('*'): a row de profiles
+// também guarda google_access_token/google_refresh_token (migration 0004) e
+// trazê-los pro browser amplia o raio de um XSS sem nenhum ganho.
+const PROFILE_COLUMNS =
+  'id, email, full_name, curso, semestre_atual, materias, ' +
+  'drive_root_folder_id, drive_connected_at, created_at, updated_at';
+
 export function useProfile() {
   return useQuery({
     queryKey: ['profile'],
@@ -14,11 +21,11 @@ export function useProfile() {
       if (!user) return null;
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(PROFILE_COLUMNS)
         .eq('id', user.id)
         .single();
       if (error) throw error;
-      return data as Profile;
+      return data as unknown as Profile;
     },
   });
 }
