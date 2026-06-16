@@ -1,5 +1,7 @@
 # PSP2 — IA para Universitários
 
+[![CI](https://github.com/Theomurah/psp2-ia-universitarios/actions/workflows/ci.yml/badge.svg)](https://github.com/Theomurah/psp2-ia-universitarios/actions/workflows/ci.yml)
+
 Mini SaaS que ingere documentos acadêmicos (PDF, DOCX, PPTX, MD, imagens), processa via LLM para sintetizar, organiza no Google Drive do aluno, e gera system prompts personalizados + biblioteca de prompts acadêmicos.
 
 **Disciplina:** PSP2 — UnB, semestre 2026.1
@@ -13,7 +15,7 @@ Mini SaaS que ingere documentos acadêmicos (PDF, DOCX, PPTX, MD, imagens), proc
 |---|---|
 | Frontend | Vite + React 19 + TypeScript |
 | Routing | React Router v6 |
-| UI | Tailwind + shadcn/ui |
+| UI | CSS próprio com design tokens UnB (`apps/web/src/index.css`) — sem Tailwind/shadcn |
 | Forms | React Hook Form + Zod |
 | Estado servidor | TanStack Query |
 | Backend | Supabase Edge Functions (Deno) |
@@ -74,10 +76,8 @@ npm run dev
 ## Git flow
 
 - `main` — produção, sempre estável
-- `dev` — integração contínua entre features
 - `feature/{descrição-curta}` — uma branch por tarefa
-- PR de `feature/*` → `dev` (1 review mínimo)
-- PR de `dev` → `main` ao final de cada sprint
+- PR de `feature/*` → `main` (1 review mínimo)
 
 **Commits:** Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`).
 
@@ -85,9 +85,12 @@ npm run dev
 
 ## Documentação
 
-- Decisões arquiteturais e histórico: `../psp2 claude/contexto-projeto.md`
-- Backlog consolidado: `../psp2 claude/PSP2 - Consolidado.xlsx`
-- Entregas formais por sprint/épico/história: `../psp2 claude/Entregas/`
+- Convenções para devs e agentes IA (logging, segurança, design system): [`CLAUDE.md`](CLAUDE.md)
+- Pendências por sprint (lista viva): [`docs/PENDENCIAS.md`](docs/PENDENCIAS.md)
+- Trabalho extra-backlog registrado: [`docs/EXTRAS.md`](docs/EXTRAS.md)
+- Visão de futuro do produto: [`docs/visao-futuro.md`](docs/visao-futuro.md)
+- Schema do banco: [`docs/schema-db.md`](docs/schema-db.md)
+- Entregas formais por sprint/épico/história: [`Entregas/`](Entregas/)
 
 ---
 

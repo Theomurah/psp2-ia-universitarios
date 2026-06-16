@@ -40,6 +40,7 @@ export const MIME_TO_FORMAT: Record<string, FormatoDocumento> = {
   'text/plain': 'md',
   'image/png': 'image',
   'image/jpeg': 'image',
+  'image/jpg': 'image',
   'image/heic': 'image',
   'image/webp': 'image',
 };
@@ -70,6 +71,20 @@ export const PIPELINE_STEPS = [
   'upload_drive',
 ] as const;
 export type PipelineStep = (typeof PIPELINE_STEPS)[number];
+
+// =============================================================
+// Feedback (H10) — tópico do feedback do aluno sobre uma síntese
+// =============================================================
+export const FEEDBACK_TOPICS = ['sintese', 'nomenclatura', 'drive', 'prompts', 'outro'] as const;
+export type FeedbackTopic = (typeof FEEDBACK_TOPICS)[number];
+
+export const FEEDBACK_TOPIC_LABELS: Record<FeedbackTopic, string> = {
+  sintese: 'Síntese',
+  nomenclatura: 'Nomenclatura',
+  drive: 'Google Drive',
+  prompts: 'Prompts',
+  outro: 'Outro',
+};
 
 // =============================================================
 // Nomenclatura (T07)
@@ -115,6 +130,11 @@ export const TARGETS = {
 // =============================================================
 // SLO de tempo (T06)
 // =============================================================
+// TODO(observabilidade): nenhum caller hoje consome esses números.
+// Quando o painel ops / dashboard admin (ver OBS-6 da auditoria
+// 2026-05-26) entrar, comparar p95 real de runPipeline contra esses
+// alvos por bucket de tamanho e disparar alerta quando estourar.
+// Origem: auditoria 2026-05-26 (Agente 2 — Código Morto, A5).
 export const SLO = {
   small_doc_chars: 5_000,
   medium_doc_chars: 20_000,

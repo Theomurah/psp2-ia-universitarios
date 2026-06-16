@@ -4,6 +4,7 @@
  */
 
 import type {
+  FeedbackTopic,
   FormatoDocumento,
   JobStatus,
   PipelineStep,
@@ -13,21 +14,41 @@ import type {
 // =============================================================
 // Profile (extends auth.users)
 // =============================================================
+export interface HorarioAula {
+  dia: 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab';
+  inicio: string;      // "HH:MM"
+  fim: string;         // "HH:MM"
+}
+
 export interface MateriaPerfil {
   code: string;        // "FISICA3"
   nome: string;        // "Física 3"
   profs?: string[];    // ["Fábio Lima"]
+  horarios?: HorarioAula[];
+  /** Campos opcionais — importados do atestado SIGAA. */
+  turma?: string;                    // "01"
+  professor?: string;                // "FABIO MENEZES DE SOUZA LIMA"
+  local?: string;                    // "ICC AT 117"
+  codigo_horario_sigaa?: string;     // "26N34" — multi-turno separa por espaço: "2M34 4T12"
 }
 
 export interface Profile {
   id: string;
   email: string;
   full_name: string | null;
+  curso: string | null;                 // "Engenharia de Produção"
   semestre_atual: string | null;        // "2026.1"
   materias: MateriaPerfil[];
   drive_root_folder_id: string | null;
+  drive_connected_at: string | null;    // timestamp da 1ª conexão Drive (0004)
+  is_admin: boolean;                    // role admin (0008), default false
+  is_test: boolean;                     // perfil de seed/teste (0013), default false
   created_at: string;
   updated_at: string;
+  // ATENÇÃO: as colunas google_* (google_refresh_token, google_access_token,
+  // google_token_expires_at) existem no banco mas ficam FORA deste tipo de
+  // propósito — são server-only (Edge Functions via service role) e nunca
+  // devem circular no frontend nem em payloads. Não adicionar aqui.
 }
 
 // =============================================================
@@ -56,6 +77,9 @@ export interface DocumentRecord {
 
   created_at: string;
   processed_at: string | null;
+
+  // Soft delete (migration 0007) — null = ativo, timestamp = arquivado
+  archived_at: string | null;
 }
 
 // =============================================================
@@ -101,28 +125,8 @@ export interface JobEvent {
   created_at: string;
 }
 
-// =============================================================
-// Generated content (síntese, compressão, cola)
-// =============================================================
-export type GeneratedContentType =
-  | 'synthesized'
-  | 'compressed_compact'
-  | 'compressed_cola';
-
-export interface GeneratedContent {
-  id: string;
-  document_id: string;
-  type: GeneratedContentType;
-  markdown: string;
-  metadata: {
-    topicos?: string[];
-    formulas_count?: number;
-    secoes_count?: number;
-    [k: string]: unknown;
-  };
-  validation_score: number | null;
-  created_at: string;
-}
+// (GeneratedContent / GeneratedContentType movidos para types.internal.ts —
+//  schema-first, sem caller no codebase ainda. Auditoria 2026-05-26 / A4.)
 
 // =============================================================
 // Prompt library
@@ -142,33 +146,34 @@ export interface PromptLibraryItem {
 }
 
 // =============================================================
-// User system prompt (output principal)
+// Feedback (H10) — avaliação do aluno sobre uma síntese ou o produto
+// =============================================================
+export interface Feedback {
+  id: string;
+  user_id: string;
+  job_id: string | null;                // null = feedback geral (não atrelado a job)
+  rating: number;                       // 1-5 (check constraint no banco)
+  topic: FeedbackTopic;
+  comments: string | null;
+  created_at: string;
+}
+
+// =============================================================
+// User system prompt (H7) — prompt personalizado do aluno, versionado
 // =============================================================
 export interface UserSystemPrompt {
   id: string;
   user_id: string;
   prompt_text: string;
-  semester_snapshot: string;
-  source_documents: string[];
+  semester_snapshot: string;            // "2026.1" vigente quando criado
+  source_documents: string[];           // IDs dos docs que serviram de base
   version: number;
-  is_active: boolean;
+  is_active: boolean;                   // só uma versão ativa por usuário
   created_at: string;
 }
 
-// =============================================================
-// Feedback
-// =============================================================
-export type FeedbackTopic = 'sintese' | 'nomenclatura' | 'drive' | 'prompts' | 'outro';
-
-export interface Feedback {
-  id: string;
-  user_id: string;
-  job_id: string | null;
-  rating: 1 | 2 | 3 | 4 | 5;
-  topic: FeedbackTopic;
-  comments: string | null;
-  created_at: string;
-}
+// (GeneratedContent segue em types.internal.ts — schema-first, lido hoje só
+//  pelo MarkdownPreview com shape inline. Auditoria 2026-05-26 / A4.)
 
 // =============================================================
 // LLM call I/O

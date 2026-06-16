@@ -1,0 +1,157 @@
+/**
+ * Edge Function: connect-drive (T27).
+ *
+ * Recebe os tokens OAuth do Google que o frontend obteve via Supabase Auth
+ * (Provider Google) e persiste em `profiles`. Cria/garante a pasta-raiz
+ * "PSP2 - Estudos" no Drive do aluno e salva o id.
+ *
+ * Não chama nenhum LLM. Pode ser invocada com token recém-obtido ou pra
+ * forçar reconexão.
+ *
+ * Body esperado:
+ *   {
+ *     "provider_token":         string,  // access token do Google
+ *     "provider_refresh_token": string,  // refresh token
+ *     "expires_in":             number   // segundos até expirar (default 3600)
+ *   }
+ *
+ * Hardening:
+ * - JWT obrigatório
+ * - Rate limit por usuário (5/min — operação rara)
+ * - Validação estrita de tokens (formato + tamanho)
+ * - Erros não vazam mensagem interna
+ */
+
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { z } from 'npm:zod@3.23.8';
+import { handleCorsPreflight } from '../_shared/cors.ts';
+import { createAuthClient } from '../_shared/supabase-client.ts';
+import {
+  jsonResponse,
+  errorResponse,
+  requireContentType,
+  requireMaxPayload,
+  parseJsonBody,
+} from '../_shared/http.ts';
+import { checkRateLimit, clientFingerprint } from '../_shared/rate-limit.ts';
+import { createLogger } from '../_shared/log.ts';
+import { ensureRootFolder, DriveAuthExpiredError, DriveError } from '../_shared/drive/index.ts';
+
+const MAX_BODY_BYTES = 16 * 1024;
+const log = createLogger('connect-drive');
+
+const ConnectDriveSchema = z.object({
+  provider_token: z.string().min(20).max(4096),
+  provider_refresh_token: z.string().min(20).max(4096),
+  expires_in: z.number().int().positive().max(86_400 * 30).optional(),
+});
+
+serve(async (req) => {
+  const cors = handleCorsPreflight(req);
+  if (cors) return cors;
+
+  try {
+    const ctErr = requireContentType(req, 'application/json');
+    if (ctErr) return ctErr;
+    const sizeErr = requireMaxPayload(req, MAX_BODY_BYTES);
+    if (sizeErr) return sizeErr;
+
+    // 1) Autentica o usuário via JWT
+    const auth = createAuthClient(req);
+    const { data: { user }, error: authError } = await auth.auth.getUser();
+    if (authError || !user) {
+      return errorResponse(req, 'unauthorized', 401);
+    }
+
+    // 2) Rate limit por usuário (5/min, operação cara que faz round-trip ao Google)
+    const fp = clientFingerprint(req, user.id);
+    const rl = checkRateLimit(`connect-drive:${fp}`, { max: 5, windowSec: 60 });
+    if (!rl.ok) {
+      log.warn('rate_limited', { user_id: user.id, endpoint: 'connect-drive', window_sec: 60 });
+      return errorResponse(req, 'rate_limited', 429);
+    }
+
+    // 3) Lê + valida body
+    const [body, parseErr] = await parseJsonBody(req);
+    if (parseErr) return parseErr;
+    const parsed = ConnectDriveSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(req, 'invalid_body', 400);
+    }
+    const { provider_token, provider_refresh_token } = parsed.data;
+    const expires_in = parsed.data.expires_in ?? 3600;
+
+    // 4) Cria/encontra a pasta-raiz "PSP2 - Estudos" no Drive do aluno
+    let rootFolderId: string | null = null;
+    try {
+      const root = await ensureRootFolder({ accessToken: provider_token });
+      rootFolderId = root.id;
+    } catch (err) {
+      if (err instanceof DriveAuthExpiredError) {
+        log.warn('drive_auth_expired', { user_id: user.id });
+        return errorResponse(req, 'drive_auth_expired', 401);
+      }
+      if (err instanceof DriveError) {
+        log.error('drive_api_error', { user_id: user.id, drive_status: err.status, ...log.fromError(err) });
+        return errorResponse(req, 'drive_api_error', 502);
+      }
+      throw err;
+    }
+
+    // 5) Salva tokens + root_folder_id no profile com o client AUTENTICADO —
+    //    a RLS cobre (profiles_update_own, 0006: update da própria linha) e o
+    //    comentário antigo ("service role pra contornar RLS") estava errado:
+    //    não há nada pra contornar. Manter a RLS ativa é defesa em
+    //    profundidade contra um `.eq('id', ...)` errado escrever tokens no
+    //    profile de outro usuário.
+    //    Origem: auditoria 2026-06-10 (EDGE-HANDLERS-02).
+    const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
+
+    const { error: updateError } = await auth
+      .from('profiles')
+      .update({
+        google_access_token: provider_token,
+        google_refresh_token: provider_refresh_token,
+        google_token_expires_at: expiresAt,
+        drive_root_folder_id: rootFolderId,
+        drive_connected_at: new Date().toISOString(),
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      // Schema pode estar sem 0004 aplicada — tenta update parcial
+      const msg = updateError.message?.toLowerCase() ?? '';
+      if (msg.includes('google_access_token') || msg.includes('drive_connected_at') || msg.includes('google_token_expires_at')) {
+        const { error: fallbackError } = await auth
+          .from('profiles')
+          .update({
+            google_refresh_token: provider_refresh_token,
+            drive_root_folder_id: rootFolderId,
+          })
+          .eq('id', user.id);
+        if (fallbackError) {
+          log.error('profile_fallback_update_failed', { user_id: user.id, ...log.fromError(fallbackError) });
+          return errorResponse(req, 'internal_error', 500);
+        }
+        log.warn('drive_connected_migration_pending', { user_id: user.id, has_root_folder: !!rootFolderId });
+        return jsonResponse(req, {
+          ok: true,
+          drive_root_folder_id: rootFolderId,
+          warning: 'migration_pending',
+        });
+      }
+      log.error('profile_update_failed', { user_id: user.id, ...log.fromError(updateError) });
+      return errorResponse(req, 'internal_error', 500);
+    }
+
+    log.info('drive_connected', { user_id: user.id, has_root_folder: !!rootFolderId, expires_in });
+
+    return jsonResponse(req, {
+      ok: true,
+      drive_root_folder_id: rootFolderId,
+    });
+  } catch (err) {
+    log.error('unhandled', log.fromError(err));
+    return errorResponse(req, 'internal_error', 500);
+  }
+});
