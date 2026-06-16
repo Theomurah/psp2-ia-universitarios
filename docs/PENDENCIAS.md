@@ -125,6 +125,15 @@ Auditoria feita via MCP Supabase em `bthwkwgdbtrkixajvddi` (projeto `psp2-ia-uni
 
 **Conflito resolvido:** o arquivo `0007_archive_documents.sql` (criado em 26/05 às 20:08) colidia com `0007_schema_cleanup.sql` (do mesmo dia, 14:23). Foi renomeado para `0012_archive_documents.sql` e aplicado via `mcp__supabase__apply_migration` em 27/05.
 
+> **Atualização 10/06/2026 — migrations além da 0012:** o repo avançou:
+> `0013`–`0016` (flag de dados de teste, fixes de RPC admin, dashboard v2, seed)
+> **aplicadas em prod**; `0017` (feedback admin) e `0018` (activity_logs)
+> **pendentes em prod**; `0019` reservada em outra branch; `0020+` criadas pela
+> auditoria 2026-06-10 (pendentes). Aplicar as pendentes ANTES de mergear código
+> que dependa delas. O workflow `deploy-functions.yml` agora tem job `migrate`
+> (`supabase db push` antes do deploy das functions) — exige a secret
+> `SUPABASE_DB_PASSWORD` no GitHub.
+
 ### Advisors atuais (rodar antes de submeter pra avaliação)
 
 `mcp__supabase__get_advisors` reporta:
@@ -498,8 +507,8 @@ Todos esses passos devem terminar em verde sem erro.
 | Achado | Descrição | Esforço |
 |---|---|---|
 | B2 bugs | UI Conectar Drive em `SettingsPage` + handler `signInWithOAuth(google)` + POST `connect-drive` | 6h |
-| B3 bugs | Página `/meu-prompt` consumindo `generate-system-prompt` + botão Regenerar + Copiar | 6h |
-| E1 bugs | Widget de feedback (rating + tópico + comentário) inserindo em `feedback` | 4h |
+| B3 bugs | ✅ **CONCLUÍDO** — entregue como `SystemPromptSection.tsx` em `/settings` (em vez de página `/meu-prompt`), com consumo na síntese (commit `ab438c8`, H7) | — |
+| E1 bugs | ✅ **CONCLUÍDO** — `FeedbackWidget.tsx` no drawer do Dashboard + migration `0017_feedback_admin` + aba `/admin/feedback` (commit `cb99fc4`, H10) | — |
 | C1 bugs | `staleTime` + `onError` em `useProfile`, `usePromptLibrary` (já feito em `useJobs`) | 1h |
 | S-02 | Frontend parsea JSON de erro da Edge Function, mostra mensagem amigável | 1h |
 | F-01 testes | Frontend tem **zero testes** — instalar `@testing-library/react`+`jsdom`, escrever smoke de `LoginPage`, `UploadDropzone`, `JobCard`, `DashboardPage`, `RequireAuth` | 15h |

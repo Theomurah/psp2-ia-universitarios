@@ -32,10 +32,12 @@ describe('parseHorarioCode', () => {
   });
 
   it('decodifica 35T45 (ter+qui, tarde aulas 4 e 5)', () => {
+    // Grade oficial UnB: T4=16:00-16:55, T5=16:55-17:50 — bate com a TABELA
+    // DE HORÁRIOS impressa na fixture real (ENM0128 no slot 16:00-16:55).
     const r = parseHorarioCode('35T45');
     expect(r).toEqual([
-      { dia: 'ter', inicio: '16:55', fim: '18:55' },
-      { dia: 'qui', inicio: '16:55', fim: '18:55' },
+      { dia: 'ter', inicio: '16:00', fim: '17:50' },
+      { dia: 'qui', inicio: '16:00', fim: '17:50' },
     ]);
   });
 
@@ -71,6 +73,13 @@ describe('parseHorarioCode', () => {
     expect(Object.keys(UNB_TURNOS)).toEqual(['M', 'T', 'N']);
     expect(UNB_TURNOS.M[1].inicio).toBe('08:00');
     expect(UNB_TURNOS.N[4].fim).toBe('22:30');
+  });
+
+  it('UNB_TURNOS.T segue a grade oficial (7 slots, T1=12:55)', () => {
+    expect(Object.keys(UNB_TURNOS.T)).toHaveLength(7);
+    expect(UNB_TURNOS.T[1]).toEqual({ inicio: '12:55', fim: '13:50' });
+    expect(UNB_TURNOS.T[4]).toEqual({ inicio: '16:00', fim: '16:55' });
+    expect(UNB_TURNOS.T[7]).toEqual({ inicio: '18:55', fim: '19:50' });
   });
 });
 
@@ -163,8 +172,8 @@ describe('parseSigaaAtestado — fixture Theo 2026.1', () => {
     const m = r.materias.find((m) => m.code === 'ENM0128');
     expect(m?.codigo_horario_sigaa).toBe('35T45');
     expect(m?.horarios).toEqual([
-      { dia: 'ter', inicio: '16:55', fim: '18:55' },
-      { dia: 'qui', inicio: '16:55', fim: '18:55' },
+      { dia: 'ter', inicio: '16:00', fim: '17:50' },
+      { dia: 'qui', inicio: '16:00', fim: '17:50' },
     ]);
   });
 
@@ -179,6 +188,48 @@ describe('parseSigaaAtestado — edge cases', () => {
     const r = parseSigaaAtestado('');
     expect(r.materias).toEqual([]);
     expect(r.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('disciplina multi-turno: captura TODOS os códigos de horário (2M34 4T12)', () => {
+    // Antes só o primeiro código era decodificado — o bloco da tarde sumia
+    // silenciosamente. Auditoria 2026-06-10 (PKG-SHARED-03).
+    const r = parseSigaaAtestado(`
+TURMAS MATRICULADAS: 1
+EPR0999 LABORATÓRIO DE PRODUÇÃO   01    MATRICULADO(A)   2M34 4T12
+MARIA HELENA DOS SANTOS SILVA
+Tipo: DISCIPLINA  Local: FT - DT 10/1
+`);
+    expect(r.materias).toHaveLength(1);
+    const m = r.materias[0];
+    expect(m.nome).toBe('LABORATÓRIO DE PRODUÇÃO');
+    expect(m.codigo_horario_sigaa).toBe('2M34 4T12');
+    expect(m.horarios).toEqual([
+      { dia: 'seg', inicio: '10:00', fim: '11:50' },   // 2M34 → M3+M4
+      { dia: 'qua', inicio: '12:55', fim: '14:55' },   // 4T12 → T1+T2
+    ]);
+    const codesProblema = r.warnings.filter((w) => w.includes('não pôde ser decodificado'));
+    expect(codesProblema).toEqual([]);
+  });
+
+  it('disciplina multi-turno em layout pdf-parse (códigos em linha separada)', () => {
+    const r = parseSigaaAtestado(`
+TURMAS MATRICULADAS: 1
+EPR0999
+LABORATÓRIO DE PRODUÇÃO
+MARIA HELENA DOS SANTOS SILVA
+Tipo: DISCIPLINA
+Local: FT - DT 10/1
+01
+MATRICULADO(A)
+2M34 4T12
+TABELA DE HORÁRIOS:
+`);
+    expect(r.materias).toHaveLength(1);
+    const m = r.materias[0];
+    expect(m.nome).toBe('LABORATÓRIO DE PRODUÇÃO');
+    expect(m.professor).toBe('MARIA HELENA DOS SANTOS SILVA');
+    expect(m.codigo_horario_sigaa).toBe('2M34 4T12');
+    expect(m.horarios).toHaveLength(2);
   });
 
   it('texto sem cabeçalho mas com bloco de matérias funciona parcial', () => {

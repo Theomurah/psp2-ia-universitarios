@@ -201,7 +201,14 @@ em componentes/CSS novos. Os tokens vivem em `apps/web/src/index.css` no `:root`
 
 ### Acessibilidade
 
-- `*:focus-visible` já tem outline amarelo UnB — não sobrescrever.
+- **Foco global (`*:focus-visible`):** outline azul UnB `var(--secondary)` (2px,
+  offset 2px) + halo amarelo `var(--accent)` (`box-shadow: 0 0 0 4px`). Racional
+  WCAG 1.4.11 (Non-text Contrast): o indicador de foco precisa de contraste
+  ≥ 3:1 contra os fundos adjacentes — o amarelo `#FFB81C` sozinho não atinge
+  isso sobre os fundos claros do app (`--bg`/`--bg-elevated`), o azul `#003366`
+  atinge com folga; o halo amarelo mantém a identidade UnB e serve de segundo
+  indicador sobre superfícies escuras (ex: botão primary verde). Não trocar o
+  par por uma cor só sem reavaliar o contraste.
 - Inputs herdam `--primary` no focus + `box-shadow: 0 0 0 3px var(--primary-soft)`.
 - Tabelas com `<th>` sticky no scroll vertical (já no `.atividade-table`).
 - Botões icon-only sempre com `aria-label`.
@@ -261,21 +268,23 @@ deno check supabase/functions/<nome>/index.ts
 
 > Origem: auditoria 2026-05-26 (Agente 6 — Banco, achado F2).
 
-O projeto ainda não usa `pg_cron`. Casos planejados que vão entrar em
-migrations futuras (não mexer no dashboard do Supabase — sempre via
-migration versionada):
+O primeiro uso de `pg_cron` entrou na migration `0028_activity_logs_retention`
+(limpeza de `activity_logs`). Demais casos planejados vão entrar em migrations
+futuras (não mexer no dashboard do Supabase — sempre via migration versionada):
 
 | Job                                              | Frequência    | Sprint alvo |
 |--------------------------------------------------|---------------|-------------|
 | **Watchdog de jobs presos** — jobs em `processing` há > 10min com `attempt_count < max_retries` voltam para `pending` (cobre achado A7 da auditoria) | a cada 5 min  | Sprint 2    |
 | **Refresh proativo de `google_access_token`** — antes do expires_at vencer (hoje refresh é on-demand em `connect-drive`) | a cada 30 min | Sprint 3    |
 | **Limpeza de `job_events` antigos** — eventos > 90 dias (tabela cresce indefinidamente, ver A7 obs) | diário 03:00  | Sprint 4    |
+| **Limpeza de `activity_logs` antigos** — registros > 90 dias (prometido no comentário da 0018; cada page-load gera eventos) | diário 03:00  | ✅ entregue (migration `0028`) |
 | **Snapshot de métricas** — agregação diária pra `MetricsCards` em vez de COUNT(*) em tempo real | diário 04:00  | Sprint 4    |
 
 Padrão de migration esperado:
 
 ```sql
-create extension if not exists pg_cron with schema extensions;
+-- pg_cron não é relocatable (cria o schema `cron` próprio) — sem `with schema`.
+create extension if not exists pg_cron;
 
 select cron.schedule(
   'watchdog-stuck-jobs',

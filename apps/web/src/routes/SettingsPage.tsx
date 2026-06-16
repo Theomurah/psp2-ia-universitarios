@@ -171,7 +171,11 @@ export default function SettingsPage() {
   }
 
   return (
-    <form className="container settings" onSubmit={handleSubmit(onSubmit, onInvalid)}>
+    // O <form> do perfil NÃO envolve mais SystemPromptSection/PrivacySection:
+    // Enter num input dessas seções (ex: confirmação "EXCLUIR") disparava a
+    // submissão implícita do perfil (auditoria 2026-06-10, WEB-ROUTES-03).
+    <div className="container">
+      <form className="settings" onSubmit={handleSubmit(onSubmit, onInvalid)}>
       <header>
         <h1>Configurações</h1>
         <p className="hint">
@@ -184,20 +188,38 @@ export default function SettingsPage() {
         <h2>Perfil</h2>
         <label className="field">
           <span>Nome completo</span>
-          <input type="text" placeholder="Theo Murah" {...register('full_name')} />
-          {errors.full_name && <em className="error">{errors.full_name.message}</em>}
+          <input
+            type="text"
+            placeholder="Theo Murah"
+            aria-invalid={errors.full_name ? true : undefined}
+            aria-describedby={errors.full_name ? 'set-err-full-name' : undefined}
+            {...register('full_name')}
+          />
+          {errors.full_name && <em id="set-err-full-name" role="alert" className="error">{errors.full_name.message}</em>}
         </label>
 
         <label className="field">
           <span>Curso</span>
-          <input type="text" placeholder="Engenharia de Produção" {...register('curso')} />
-          {errors.curso && <em className="error">{errors.curso.message}</em>}
+          <input
+            type="text"
+            placeholder="Engenharia de Produção"
+            aria-invalid={errors.curso ? true : undefined}
+            aria-describedby={errors.curso ? 'set-err-curso' : undefined}
+            {...register('curso')}
+          />
+          {errors.curso && <em id="set-err-curso" role="alert" className="error">{errors.curso.message}</em>}
         </label>
 
         <label className="field">
           <span>Semestre atual</span>
-          <input type="text" placeholder="2026.1" {...register('semestre_atual')} />
-          {errors.semestre_atual && <em className="error">{errors.semestre_atual.message}</em>}
+          <input
+            type="text"
+            placeholder="2026.1"
+            aria-invalid={errors.semestre_atual ? true : undefined}
+            aria-describedby={errors.semestre_atual ? 'set-err-semestre' : undefined}
+            {...register('semestre_atual')}
+          />
+          {errors.semestre_atual && <em id="set-err-semestre" role="alert" className="error">{errors.semestre_atual.message}</em>}
         </label>
       </section>
 
@@ -338,10 +360,20 @@ export default function SettingsPage() {
           {isSubmitting ? 'Salvando…' : 'Salvar alterações'}
         </button>
       </div>
+      </form>
 
-      <SystemPromptSection />
+      {/* Form separado e sem submit: mantém o layout de `form.settings` do CSS
+          e garante que Enter aqui dentro nunca salva o perfil. */}
+      <form
+        className="settings"
+        style={{ marginTop: '1.25rem' }}
+        aria-label="Outras configurações"
+        onSubmit={(e) => e.preventDefault()}
+      >
+        <SystemPromptSection />
 
-      <PrivacySection />
-    </form>
+        <PrivacySection />
+      </form>
+    </div>
   );
 }

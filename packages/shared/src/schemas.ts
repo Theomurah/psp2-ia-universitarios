@@ -9,10 +9,31 @@ import { TIPOS_DOCUMENTO, FORMATOS_SUPORTADOS, NOMENCLATURA } from './constants.
 // =============================================================
 // Classificação (T09)
 // =============================================================
+
+/**
+ * Valida que a string AAAA-MM-DD é uma data real do calendário.
+ * Round-trip via Date UTC: '2026-13-45' e '2026-02-30' são rejeitadas —
+ * a coluna documents.data_doc é `date` no Postgres e recusaria o UPDATE
+ * inteiro, perdendo a classificação. Auditoria 2026-06-10 (PKG-SHARED-04).
+ */
+const isRealIsoDate = (value: string): boolean => {
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+
 export const ClassificationSchema = z.object({
   materia_code: z.string().regex(/^[A-Z][A-Z0-9_]+$/, 'MATERIA_CODE em UPPERCASE com underscore'),
   tipo: z.enum(TIPOS_DOCUMENTO),
-  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  data: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine(isRealIsoDate, 'data must be a real calendar date (AAAA-MM-DD)')
+    .nullable(),
   identificador: z.string().max(50).nullable(),
   titulo: z.string().min(3).max(80),
   confianca: z.number().min(0).max(1),
@@ -20,37 +41,11 @@ export const ClassificationSchema = z.object({
 });
 export type Classification = z.infer<typeof ClassificationSchema>;
 
-// =============================================================
-// Síntese (T08)
-// =============================================================
-export const SynthesisInputSchema = z.object({
-  texto_bruto: z.string().min(50),
-  contexto: z.object({
-    materia_code: z.string(),
-    materia_nome: z.string(),
-    tipo: z.enum(TIPOS_DOCUMENTO),
-    data: z.string().nullable(),
-    identificador: z.string().nullable(),
-    titulo: z.string(),
-    semestre: z.string(),
-    fonte: z.string().nullable(),
-  }),
-});
-export type SynthesisInput = z.infer<typeof SynthesisInputSchema>;
-
-// =============================================================
-// Compressão (T10)
-// =============================================================
-export const CompressionInputSchema = z.object({
-  markdown_sintetizado: z.string().min(100),
-  modo: z.enum(['compacta', 'cola']),
-  metadata_origem: z.object({
-    chars_input_original: z.number(),
-    formulas_count: z.number(),
-    secoes_count: z.number(),
-  }),
-});
-export type CompressionInput = z.infer<typeof CompressionInputSchema>;
+// (SynthesisInputSchema / CompressionInputSchema removidos — zero callers e
+//  já divergiam do contrato real do pipeline: SynthesizeInput tem
+//  user_system_prompt (H7) e CompressInput não tem metadata_origem. O contrato
+//  canônico vive em supabase/functions/_shared/pipeline.ts. Mesmo critério do
+//  GeneratedContent na auditoria A4. Auditoria 2026-06-10 / PKG-SHARED-02.)
 
 // =============================================================
 // Perfil — Formulário de onboarding
@@ -74,8 +69,14 @@ export const MateriaSchema = z.object({
   turma: z.string().max(10).optional(),
   professor: z.string().max(120).optional(),
   local: z.string().max(80).optional(),
-  /** Código original do SIGAA (ex: "26N34") para preservar o source-of-truth */
-  codigo_horario_sigaa: z.string().regex(/^[1-7]+[MTN][1-9]+$/).optional(),
+  /**
+   * Código(s) originais do SIGAA para preservar o source-of-truth.
+   * Disciplina multi-turno tem mais de um, separados por espaço: "2M34 4T12".
+   */
+  codigo_horario_sigaa: z
+    .string()
+    .regex(/^[1-7]+[MTN][1-9]+( [1-7]+[MTN][1-9]+)*$/)
+    .optional(),
 });
 
 export const ProfileFormSchema = z.object({

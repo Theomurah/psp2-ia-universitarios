@@ -33,7 +33,9 @@ export default function AdminLayout() {
     <AdminPrefsProvider>
       <div className="container">
         <div className="admin-topbar-row">
-          <nav className="admin-subnav" role="tablist" aria-label="Seções do painel admin">
+          {/* Sem role=tablist: são links de navegação (NavLink já emite aria-current),
+              não tabs ARIA — ver achado WEB-ROUTES-09 da auditoria 2026-06-10. */}
+          <nav className="admin-subnav" aria-label="Seções do painel admin">
             <NavLink to="/admin/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
               Visão geral
             </NavLink>

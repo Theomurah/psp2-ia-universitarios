@@ -60,13 +60,14 @@ export default function PromptsPage() {
           onChange={(e) => setQuery(e.target.value)}
           aria-label="Buscar prompts"
         />
-        <div className="prompts-filter" role="tablist" aria-label="Filtrar por categoria">
+        {/* Botões toggle simples (aria-pressed) — role=tablist sem o padrão
+            completo de tabs engana leitores de tela (WEB-ROUTES-09). */}
+        <div className="prompts-filter" role="group" aria-label="Filtrar por categoria">
           {CATEGORIES.map((c) => (
             <button
               key={c.value}
               type="button"
-              role="tab"
-              aria-selected={filter === c.value}
+              aria-pressed={filter === c.value}
               className={filter === c.value ? 'active' : ''}
               onClick={() => setFilter(c.value)}
             >

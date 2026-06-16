@@ -15,7 +15,7 @@ Mini SaaS que ingere documentos acadêmicos (PDF, DOCX, PPTX, MD, imagens), proc
 |---|---|
 | Frontend | Vite + React 19 + TypeScript |
 | Routing | React Router v6 |
-| UI | Tailwind + shadcn/ui |
+| UI | CSS próprio com design tokens UnB (`apps/web/src/index.css`) — sem Tailwind/shadcn |
 | Forms | React Hook Form + Zod |
 | Estado servidor | TanStack Query |
 | Backend | Supabase Edge Functions (Deno) |
@@ -85,9 +85,12 @@ npm run dev
 
 ## Documentação
 
-- Decisões arquiteturais e histórico: `../psp2 claude/contexto-projeto.md`
-- Backlog consolidado: `../psp2 claude/PSP2 - Consolidado.xlsx`
-- Entregas formais por sprint/épico/história: `../psp2 claude/Entregas/`
+- Convenções para devs e agentes IA (logging, segurança, design system): [`CLAUDE.md`](CLAUDE.md)
+- Pendências por sprint (lista viva): [`docs/PENDENCIAS.md`](docs/PENDENCIAS.md)
+- Trabalho extra-backlog registrado: [`docs/EXTRAS.md`](docs/EXTRAS.md)
+- Visão de futuro do produto: [`docs/visao-futuro.md`](docs/visao-futuro.md)
+- Schema do banco: [`docs/schema-db.md`](docs/schema-db.md)
+- Entregas formais por sprint/épico/história: [`Entregas/`](Entregas/)
 
 ---
 

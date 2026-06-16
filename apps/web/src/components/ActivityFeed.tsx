@@ -8,6 +8,7 @@
 
 import { useMemo, useState } from 'react';
 import { useActivity, type ActivityRow } from '../hooks/useActivity';
+import { fmtDate } from '../lib/format';
 
 type EventType = 'start' | 'success' | 'retry' | 'warning' | 'error';
 
@@ -24,13 +25,8 @@ const STEPS = [
   'nomenclature', 'upload_drive', 'validate',
 ];
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  const date = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  return `${date} ${time}`;
-}
-
+// fmtDate canônico (lib/format.ts) — WEB-ROUTES-06. formatDuration/formatCost
+// ficam locais: assinaturas com null + semântica própria ("—", 4 casas).
 function formatDuration(ms: number | null): string {
   if (!ms || ms <= 0) return '—';
   if (ms < 1000) return `${ms} ms`;
@@ -145,7 +141,9 @@ export default function ActivityFeed({ limit = 500, showHeader = true }: Activit
         </div>
       )}
 
-      {!isLoading && filtered.length === 0 && (
+      {/* Empty state nunca junto com erro — instruir "envie um documento"
+          quando o problema é falha de carregamento engana o aluno (WEB-COMPONENTS-06). */}
+      {!isLoading && !error && filtered.length === 0 && (
         <div className="empty">
           Nenhum evento encontrado{rows && rows.length > 0 ? ' com os filtros atuais.' : ' ainda. Envie um documento pra começar.'}
         </div>
@@ -175,7 +173,7 @@ export default function ActivityFeed({ limit = 500, showHeader = true }: Activit
                 const materia = r.jobs?.documents?.materia_code;
                 return (
                   <tr key={r.id}>
-                    <td className="cell-mono">{formatDate(r.created_at)}</td>
+                    <td className="cell-mono">{fmtDate(r.created_at)}</td>
                     <td>
                       <span className="cell-filename">{filename}</span>
                       {materia && <small className="cell-materia">{materia}</small>}

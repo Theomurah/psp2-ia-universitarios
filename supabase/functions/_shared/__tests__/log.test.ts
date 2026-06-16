@@ -61,6 +61,43 @@ describe('createLogger — formato e redação', () => {
     expect(rec.safe).toBe('ok');
   });
 
+  it('redige chaves sensíveis em objetos aninhados e arrays (redação profunda)', () => {
+    const log = createLogger('test-fn');
+    log.info('evt', {
+      ctx: {
+        user: { email: 'a@b.com', id: 'u1' },
+        tokens: [{ access_token: 'secret' }],
+      },
+      safe: 'ok',
+    });
+    const rec = parseLast(logSpy);
+    const ctx = rec.ctx as {
+      user: { email: string; id: string };
+      tokens: Array<{ access_token: string }>;
+    };
+    expect(ctx.user.email).toBe('[redacted]');
+    expect(ctx.user.id).toBe('u1');
+    expect(ctx.tokens[0].access_token).toBe('[redacted]');
+    expect(rec.safe).toBe('ok');
+  });
+
+  it('corta objetos além do limite de profundidade com [depth-limit]', () => {
+    const log = createLogger('test-fn');
+    log.info('evt', { a: { b: { c: { d: { e: 'fundo demais' } } } } });
+    const rec = parseLast(logSpy);
+    const a = rec.a as { b: { c: { d: unknown } } };
+    expect(a.b.c.d).toBe('[depth-limit]');
+  });
+
+  it('trunca strings longas também em níveis aninhados', () => {
+    const log = createLogger('test-fn');
+    log.info('evt', { nested: { big: 'x'.repeat(600) } });
+    const rec = parseLast(logSpy);
+    const nested = rec.nested as { big: string };
+    expect(nested.big.length).toBeLessThan(600);
+    expect(nested.big).toContain('…[+100]');
+  });
+
   it('roteia cada nível para o console correto', () => {
     const log = createLogger('test-fn');
     log.warn('w');

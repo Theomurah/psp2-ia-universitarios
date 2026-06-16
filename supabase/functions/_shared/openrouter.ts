@@ -45,6 +45,8 @@ export interface LLMCallOptions {
   max_tokens?: number;
   response_format?: { type: 'json_object' };
   stream?: boolean;
+  /** Timeout do request em ms. Default: env OPENROUTER_TIMEOUT_MS ou 120s. */
+  timeout_ms?: number;
 }
 
 export interface LLMCallResult {
@@ -118,6 +120,20 @@ function getKey(envs: string[]): string | undefined {
     if (v) return v;
   }
   return undefined;
+}
+
+/**
+ * Timeout default generoso (síntese de docs grandes pode demorar).
+ * Configurável por env OPENROUTER_TIMEOUT_MS, ou por chamada via opts.timeout_ms.
+ * Origem: auditoria 2026-06-10 (SHARED-FUNCTIONS-06) — fetch pendurado deixava
+ * o job preso em 'processing' até o isolate ser morto.
+ */
+const DEFAULT_TIMEOUT_MS = 120_000;
+
+function resolveTimeoutMs(opts: LLMCallOptions): number {
+  if (opts.timeout_ms != null && opts.timeout_ms > 0) return opts.timeout_ms;
+  const fromEnv = Number(Deno.env.get('OPENROUTER_TIMEOUT_MS') ?? '');
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : DEFAULT_TIMEOUT_MS;
 }
 
 /**
@@ -200,6 +216,10 @@ async function callLLMOpenAICompat(
     messages: opts.messages,
     stream: opts.stream ?? false,
   };
+  // Usage accounting (OpenRouter-only): pede o custo na resposta (usage.cost).
+  // Providers nativos (OpenAI/Anthropic/Gemini) não conhecem esse campo e
+  // poderiam rejeitar com 400 — pra eles o custo é calculado fora.
+  if (isOpenRouter) body.usage = { include: true };
   if (usesReasoningParams) {
     // Floor de tokens: o raciocínio é cobrado dentro do max_completion_tokens;
     // budgets baixos (ex: classify usa 512) podem zerar a resposta.
@@ -220,11 +240,25 @@ async function callLLMOpenAICompat(
     headers['X-Title'] = 'PSP2 IA Universitários';
   }
 
-  const res = await fetch(`${route.provider.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  // Timeout via AbortSignal: fetch pendurado deixava o job preso em 'processing'
+  // até o isolate morrer (auditoria 2026-06-10, SHARED-FUNCTIONS-06).
+  const timeoutMs = resolveTimeoutMs(opts);
+  let res: Response;
+  try {
+    res = await fetch(`${route.provider.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    // AbortSignal.timeout rejeita com DOMException TimeoutError/AbortError.
+    // Convertemos pra OpenRouterError 408 — tratado como transitório no retry.
+    if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      throw new OpenRouterError(`LLM timeout após ${timeoutMs}ms`, 408);
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => '');
@@ -243,8 +277,11 @@ async function callLLMOpenAICompat(
     model: data.model ?? route.model,
     tokens_input: data.usage?.prompt_tokens ?? 0,
     tokens_output: data.usage?.completion_tokens ?? 0,
-    // OpenRouter manda total_cost; providers nativos não → custo calculado fora.
-    cost_usd: data.usage?.total_cost ?? 0,
+    // OpenRouter com `usage: { include: true }` devolve o custo em usage.cost;
+    // `total_cost` nunca foi campo real da API (bug histórico — custo sempre 0),
+    // mantido só como fallback. Providers nativos não mandam custo → fica 0 e é
+    // calculado fora.
+    cost_usd: data.usage?.cost ?? data.usage?.total_cost ?? 0,
     finish_reason: choice.finish_reason ?? 'unknown',
   };
 }
@@ -399,9 +436,17 @@ export function parseJsonFromLLM<T = unknown>(content: string): T {
   try {
     return JSON.parse(cleaned) as T;
   } catch (err) {
+    // NUNCA embutir o content (nem a mensagem do JSON.parse, que no V8 cita
+    // trechos do texto) na message — ela flui pra logs de plataforma e
+    // error_reason, e o content deriva de documento do aluno (CLAUDE.md).
+    // O detalhe vai no `body`, que fromError() nunca serializa.
     throw new OpenRouterError(
-      `LLM retornou JSON inválido: ${(err as Error).message}\nContent: ${content.slice(0, 200)}`,
+      `LLM retornou JSON inválido (content_length=${content.length})`,
       502,
+      {
+        parse_error: (err as Error).message,
+        content_snippet: content.slice(0, 200),
+      },
     );
   }
 }
@@ -437,9 +482,10 @@ export async function callLLMWithRetry(
       return await callLLM(opts);
     } catch (err) {
       lastError = err as Error;
+      // 408 = timeout do nosso AbortSignal (callLLM converte TimeoutError).
       const isTransient =
         err instanceof OpenRouterError &&
-        (err.status === 429 || err.status >= 500);
+        (err.status === 429 || err.status === 408 || err.status >= 500);
       if (!isTransient || attempt === maxAttempts) throw err;
       const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
       if (onRetry) {

@@ -9,7 +9,7 @@
  * com eventos expansíveis, refresh manual.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useAdminMetricsOverview,
   useAdminRecentJobs,
@@ -22,6 +22,7 @@ import {
   type AdminRecentJob,
 } from '../../hooks/useAdminMetrics';
 import { useQueryClient } from '@tanstack/react-query';
+import { fmtNumber, fmtCost, fmtDate, fmtRelative } from '../../lib/format';
 import Sparkline from './Sparkline';
 import PipelineFunnel from './PipelineFunnel';
 import AlertBanner from './AlertBanner';
@@ -30,32 +31,6 @@ import { useAdminPrefs } from '../../hooks/useAdminPrefs';
 
 const PERIODS = [7, 14, 30, 90] as const;
 type Period = (typeof PERIODS)[number];
-
-function fmtNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return n.toString();
-}
-
-function fmtCost(usd: number): string {
-  if (!usd || usd === 0) return 'US$ 0';
-  if (usd < 0.01) return '< US$ 0,01';
-  return `US$ ${Number(usd).toFixed(2)}`;
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function fmtRelative(iso: string): string {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60) return 'agora';
-  if (diff < 3600) return `há ${Math.floor(diff / 60)} min`;
-  if (diff < 86400) return `há ${Math.floor(diff / 3600)} h`;
-  const days = Math.floor(diff / 86400);
-  if (days <= 14) return `há ${days} ${days === 1 ? 'dia' : 'dias'}`;
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-}
 
 const STATUS_TONE: Record<string, string> = {
   pending: 'info',
@@ -87,9 +62,8 @@ export default function AdminDashboard() {
   const [period, setPeriod] = useState<Period>(30);
   const qc = useQueryClient();
   const { includeTest } = useAdminPrefs();
-  const [refreshedAt, setRefreshedAt] = useState(() => Date.now());
 
-  const { data: m, isLoading, error, isFetching } = useAdminMetricsOverview(period, includeTest);
+  const { data: m, isLoading, error, isFetching, dataUpdatedAt } = useAdminMetricsOverview(period, includeTest);
   const { data: alerts } = useAdminAlerts(includeTest);
   const { data: jobs } = useAdminRecentJobs(15, includeTest);
   const { data: timeseries } = useAdminTimeseries(period, includeTest);
@@ -97,9 +71,16 @@ export default function AdminDashboard() {
   const { data: pipeline } = useAdminPipelineBreakdown(includeTest);
   const { data: materias } = useAdminMateriaDistribution(includeTest);
 
+  // Tick de 30s só pra re-renderizar o rótulo relativo "atualizado há X" —
+  // sem ele o texto congela entre polls (achado WEB-ROUTES-02).
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const handleRefresh = () => {
     qc.invalidateQueries({ queryKey: ['admin'] });
-    setRefreshedAt(Date.now());
   };
 
   if (isLoading) {
@@ -134,9 +115,12 @@ export default function AdminDashboard() {
           <p className="hint">Métricas consolidadas do sistema.</p>
         </div>
         <div className="admin-header-actions">
-          <span className="admin-refreshed">
-            atualizado {fmtRelative(new Date(refreshedAt).toISOString())}
-          </span>
+          {/* dataUpdatedAt reflete o último fetch real (manual OU refetchInterval) */}
+          {dataUpdatedAt > 0 && (
+            <span className="admin-refreshed">
+              atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString())}
+            </span>
+          )}
           <button type="button" className="ghost" onClick={handleRefresh} disabled={isFetching} aria-label="Atualizar agora">
             {isFetching ? 'Atualizando…' : '↻ Atualizar'}
           </button>
@@ -144,18 +128,19 @@ export default function AdminDashboard() {
       </header>
 
       {/* Banner de alertas -------------------------------------------------- */}
-      {alerts && <AlertBanner alerts={alerts} />}
+      {alerts && <AlertBanner alerts={alerts} recentJobs={jobs} />}
 
       {/* Seletor de período ------------------------------------------------- */}
       <div className="admin-period">
         <span className="admin-period-label">Período</span>
-        <div className="prompts-filter" role="tablist" aria-label="Selecionar período">
+        {/* Botões toggle simples — role=tablist sem o padrão completo de tabs
+            engana leitores de tela (achado WEB-ROUTES-09). */}
+        <div className="prompts-filter" role="group" aria-label="Selecionar período">
           {PERIODS.map((p) => (
             <button
               key={p}
               type="button"
-              role="tab"
-              aria-selected={period === p}
+              aria-pressed={period === p}
               className={period === p ? 'active' : ''}
               onClick={() => setPeriod(p)}
             >

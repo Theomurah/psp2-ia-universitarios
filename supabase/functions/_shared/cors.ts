@@ -42,18 +42,7 @@ export function corsHeadersFor(req: Request): Record<string, string> {
   };
 }
 
-/**
- * Backwards-compat: retorna headers default (primeiro origin permitido).
- * Usar `corsHeadersFor(req)` quando possível — esse echoes o Origin correto.
- */
-export const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': DEFAULT_ALLOWED_ORIGINS[0],
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-  'Vary': 'Origin',
-};
-
-export function handleCorsPrefligh(req: Request): Response | null {
+export function handleCorsPreflight(req: Request): Response | null {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeadersFor(req) });
   }

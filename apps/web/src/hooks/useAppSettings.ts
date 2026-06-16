@@ -2,9 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { createLogger } from '../lib/log';
 
-// Scope 'admin' unificado: filtra toda ação administrativa via
-// jq 'select(.scope=="admin")' nos logs.
-const log = createLogger('admin');
+// Scope 'admin_ui' = telemetria das TELAS admin (erros/avisos de UI).
+// O scope 'admin' é reservado pra trilha de auditoria server-side (triggers/
+// RPCs da migration 0024) — a RLS de activity_logs REJEITA inserts client-side
+// com scope='admin', então usar aqui faria persist() descartar tudo em silêncio.
+const log = createLogger('admin_ui');
 
 export interface AppSetting {
   key: string;

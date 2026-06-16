@@ -59,6 +59,7 @@ export default function JobCard({
   };
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const stopKey = (e: React.KeyboardEvent) => e.stopPropagation();
 
   return (
     <article
@@ -66,7 +67,16 @@ export default function JobCard({
       onClick={handleCardClick}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect?.(); }}
+      onKeyDown={(e) => {
+        // Só reage quando o keydown é no próprio card — Enter/Espaço nos
+        // botões do menu não pode abrir o preview por borbulhamento
+        // (auditoria 2026-06-10, WEB-COMPONENTS-10).
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault(); // Espaço não deve rolar a página
+          onSelect?.();
+        }
+      }}
     >
       <header>
         <span className="filename" title={job.documents.filename_original}>
@@ -75,7 +85,7 @@ export default function JobCard({
         <div className="job-card-header-right">
           <span className={`badge tone-${status.tone}`}>{status.text}</span>
           {(onArchive || onUnarchive || onDelete) && (
-            <div className="job-card-menu" ref={menuRef} onClick={stop}>
+            <div className="job-card-menu" ref={menuRef} onClick={stop} onKeyDown={stopKey}>
               <button
                 type="button"
                 className="ghost icon-only job-card-menu-trigger"

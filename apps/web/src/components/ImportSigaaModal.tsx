@@ -32,6 +32,7 @@ export default function ImportSigaaModal({ open, onClose, onConfirm }: Props) {
   const [stage, setStage] = useState<Stage>('upload');
   const [parsed, setParsed] = useState<SigaaAtestado | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // Reset ao abrir
   useEffect(() => {
@@ -39,6 +40,43 @@ export default function ImportSigaaModal({ open, onClose, onConfirm }: Props) {
       setStage('upload');
       setParsed(null);
     }
+  }, [open]);
+
+  // Gestão de foco do dialog (WCAG 2.4.3 — auditoria 2026-06-10, WEB-COMPONENTS-09):
+  // foco inicial no botão de fechar, trap de Tab/Shift+Tab dentro do modal e
+  // devolução do foco ao elemento que abriu quando fecha.
+  useEffect(() => {
+    if (!open) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    closeBtnRef.current?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !modalRef.current) return;
+      const focusables = modalRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      const inside = active instanceof Node && modalRef.current.contains(active);
+      if (e.shiftKey) {
+        if (active === first || !inside) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !inside) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      previouslyFocused?.focus();
+    };
   }, [open]);
 
   // ESC fecha
@@ -102,7 +140,7 @@ export default function ImportSigaaModal({ open, onClose, onConfirm }: Props) {
   return (
     <>
       <div className="modal-backdrop" onClick={() => stage !== 'parsing' && onClose()} aria-hidden="true" />
-      <div className="modal" role="dialog" aria-modal="true" aria-label="Importar do SIGAA">
+      <div ref={modalRef} className="modal" role="dialog" aria-modal="true" aria-label="Importar do SIGAA">
         <header className="modal-header">
           <div>
             <h2>Importar do SIGAA</h2>
@@ -154,7 +192,11 @@ export default function ImportSigaaModal({ open, onClose, onConfirm }: Props) {
               </div>
 
               <div
-                {...getRootProps()}
+                {...getRootProps({
+                  role: 'button',
+                  'aria-label': 'Enviar atestado de matrícula em PDF, até 5 MB',
+                  'aria-disabled': stage !== 'upload',
+                })}
                 className={`dropzone ${isDragActive ? 'active' : ''}`}
                 style={{ minHeight: 180 }}
               >

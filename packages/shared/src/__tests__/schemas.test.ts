@@ -41,6 +41,19 @@ describe('ClassificationSchema', () => {
     expect(() => ClassificationSchema.parse({ ...valid, data: null })).not.toThrow();
   });
 
+  it('rejeita data impossível mesmo no formato AAAA-MM-DD (PKG-SHARED-04)', () => {
+    // documents.data_doc é `date` no Postgres — data alucinada pelo LLM
+    // derrubaria o UPDATE inteiro e perderia a classificação.
+    expect(() => ClassificationSchema.parse({ ...valid, data: '2026-13-45' })).toThrow();
+    expect(() => ClassificationSchema.parse({ ...valid, data: '2026-02-30' })).toThrow();
+    expect(() => ClassificationSchema.parse({ ...valid, data: '2026-00-10' })).toThrow();
+  });
+
+  it('aceita 29/02 só em ano bissexto', () => {
+    expect(() => ClassificationSchema.parse({ ...valid, data: '2024-02-29' })).not.toThrow();
+    expect(() => ClassificationSchema.parse({ ...valid, data: '2026-02-29' })).toThrow();
+  });
+
   it('rejeita tipo fora do enum', () => {
     expect(() =>
       ClassificationSchema.parse({ ...valid, tipo: 'NaoExiste' as unknown as typeof valid.tipo }),
@@ -68,6 +81,21 @@ describe('ProfileFormSchema', () => {
       materias: [{ code: 'FISICA3', nome: 'Física 3' }],
     });
     expect(r.materias).toHaveLength(1);
+  });
+
+  it('aceita codigo_horario_sigaa multi-turno separado por espaço (PKG-SHARED-03)', () => {
+    const base = {
+      full_name: 'Theo Murah',
+      semestre_atual: '2026.1',
+    };
+    const comCodigo = (codigo: string) => ({
+      ...base,
+      materias: [{ code: 'EPR0999', nome: 'Lab de Produção', codigo_horario_sigaa: codigo }],
+    });
+    expect(() => ProfileFormSchema.parse(comCodigo('26N34'))).not.toThrow();
+    expect(() => ProfileFormSchema.parse(comCodigo('2M34 4T12'))).not.toThrow();
+    expect(() => ProfileFormSchema.parse(comCodigo('2M34  4T12'))).toThrow();  // espaço duplo
+    expect(() => ProfileFormSchema.parse(comCodigo('2M34 xyz'))).toThrow();
   });
 
   it('rejeita sem matérias', () => {

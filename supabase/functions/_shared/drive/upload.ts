@@ -178,7 +178,9 @@ async function uploadFileResumable(
         'Content-Type': mimeType,
         'Content-Length': String(totalBytes),
       },
-      body: bodyContent,
+      // Uint8Array aqui sempre tem backing ArrayBuffer (vem de normalizeContent),
+      // mas o tipo genérico Uint8Array<ArrayBufferLike> não satisfaz BodyInit no TS 5.9.
+      body: bodyContent as BodyInit,
     });
 
     if (res.status === 401) throw new DriveAuthExpiredError();

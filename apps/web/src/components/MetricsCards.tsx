@@ -7,18 +7,7 @@
  */
 
 import { useUserMetrics } from '../hooks/useActivity';
-
-function fmtNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return n.toString();
-}
-
-function fmtCost(usd: number): string {
-  if (usd === 0) return 'US$ 0';
-  if (usd < 0.01) return `< US$ 0,01`;
-  return `US$ ${usd.toFixed(2)}`;
-}
+import { fmtNumber, fmtCost } from '../lib/format';
 
 export default function MetricsCards() {
   const { data: m, isLoading } = useUserMetrics();

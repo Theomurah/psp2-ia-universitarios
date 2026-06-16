@@ -38,9 +38,18 @@ interface LogFields {
 
 /**
  * Chaves sensíveis — nunca passam por log direto. Espelha REDACT_KEYS do helper
- * canônico das Edge Functions, com adições relevantes pro frontend (full_name).
+ * canônico das Edge Functions (`supabase/functions/_shared/log.ts`); qualquer
+ * chave adicionada lá DEVE entrar aqui também (auditoria 2026-06-10,
+ * WEB-HOOKS-LIB-08/10 — o espelho manual já tinha driftado).
+ *
+ * Diferenças INTENCIONAIS em relação ao canônico (só-frontend):
+ *   - 'full_name' — PII que circula nos forms do app;
+ *   - 'details', 'hint' — campos de PostgrestError que podem conter valor de
+ *     linha (PII); no front o erro cru chega com facilidade a um log.
+ *
+ * Exportado pra permitir teste de paridade entre as duas listas.
  */
-const REDACT_KEYS = new Set([
+export const REDACT_KEYS = new Set([
   'password',
   'access_token',
   'refresh_token',
@@ -50,6 +59,9 @@ const REDACT_KEYS = new Set([
   'provider_token',
   'provider_refresh_token',
   'api_key',
+  'openai_key',
+  'anthropic_key',
+  'gpt_key',
   'openrouter_api_key',
   'authorization',
   'cookie',
@@ -92,16 +104,35 @@ function truncate(value: string, max = 500): string {
   return value.length > max ? `${value.slice(0, max)}…[+${value.length - max}]` : value;
 }
 
-function sanitizeFields(fields: LogFields): LogFields {
+/**
+ * Profundidade máxima da sanitização recursiva — protege contra ciclos e
+ * estruturas patológicas. Além desse nível o valor vira '[depth-limit]'.
+ * Mesma semântica (e mesmo placeholder) do helper canônico em
+ * `supabase/functions/_shared/log.ts`.
+ */
+const SANITIZE_MAX_DEPTH = 4;
+
+/**
+ * Sanitiza um valor em qualquer profundidade: redige chaves da whitelist,
+ * trunca strings e desce em objetos/arrays aninhados. Antes a redação era só
+ * no nível raiz — um objeto aninhado com `email`/`access_token` passava
+ * intacto pro console e pra activity_logs (WEB-HOOKS-LIB-02).
+ */
+function sanitizeValue(value: unknown, depth: number): unknown {
+  if (typeof value === 'string') return truncate(value);
+  if (value === null || typeof value !== 'object') return value;
+  if (value instanceof Date) return value.toISOString();
+  if (depth >= SANITIZE_MAX_DEPTH) return '[depth-limit]';
+  if (Array.isArray(value)) return value.map((item) => sanitizeValue(item, depth + 1));
   const out: LogFields = {};
-  for (const [key, value] of Object.entries(fields)) {
-    if (REDACT_KEYS.has(key.toLowerCase())) {
-      out[key] = '[redacted]';
-      continue;
-    }
-    out[key] = typeof value === 'string' ? truncate(value) : value;
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    out[key] = REDACT_KEYS.has(key.toLowerCase()) ? '[redacted]' : sanitizeValue(nested, depth + 1);
   }
   return out;
+}
+
+function sanitizeFields(fields: LogFields): LogFields {
+  return sanitizeValue(fields, 0) as LogFields;
 }
 
 /**

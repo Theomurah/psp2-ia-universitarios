@@ -15,8 +15,8 @@
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { handleCorsPrefligh } from '../_shared/cors.ts';
-import { createAuthClient, createServiceClient } from '../_shared/supabase-client.ts';
+import { handleCorsPreflight } from '../_shared/cors.ts';
+import { createAuthClient } from '../_shared/supabase-client.ts';
 import { jsonResponse, errorResponse } from '../_shared/http.ts';
 import { checkRateLimit, clientFingerprint } from '../_shared/rate-limit.ts';
 import { createLogger } from '../_shared/log.ts';
@@ -30,7 +30,7 @@ const RECENT_DOCS_LIMIT = 30;
 const log = createLogger('generate-system-prompt');
 
 serve(async (req) => {
-  const cors = handleCorsPrefligh(req);
+  const cors = handleCorsPreflight(req);
   if (cors) return cors;
 
   try {
@@ -53,10 +53,14 @@ serve(async (req) => {
     const url = new URL(req.url);
     const force = url.searchParams.get('force') === 'true';
 
-    const service = createServiceClient();
-
+    // Todas as operações abaixo são em dados do próprio usuário e estão
+    // cobertas pelas policies de 0006 (profiles_select_own, documents_select_own,
+    // user_prompts_*_own, generated_select_via_doc) — usamos o client
+    // AUTENTICADO pra manter a RLS como rede de segurança: um `.eq('user_id')`
+    // esquecido falha fechado em vez de vazar dados de outro usuário.
+    // Origem: auditoria 2026-06-10 (EDGE-HANDLERS-02).
     // 3) Carrega profile
-    const { data: profile, error: profErr } = await service
+    const { data: profile, error: profErr } = await auth
       .from('profiles')
       .select('full_name, curso, semestre_atual, materias')
       .eq('id', user.id)
@@ -66,7 +70,7 @@ serve(async (req) => {
     }
 
     // 4) Carrega últimos N documentos processados
-    const { data: docs, error: docsErr } = await service
+    const { data: docs, error: docsErr } = await auth
       .from('documents')
       .select('materia_code, tipo, titulo, identificador, data_doc')
       .eq('user_id', user.id)
@@ -79,7 +83,7 @@ serve(async (req) => {
     }
 
     // 5) Tópicos por matéria — agregados dos generated_content do tipo 'synthesized'
-    const topicosPorMateria = await aggregateTopicos(service, user.id);
+    const topicosPorMateria = await aggregateTopicos(auth, user.id);
 
     // 6) Monta input + renderiza
     const input: RenderSystemPromptInput = {
@@ -94,7 +98,7 @@ serve(async (req) => {
     const snapshot = buildSemesterSnapshot(input);
 
     // 7) Se já existe ativo com o mesmo snapshot, reusa (sem nova versão)
-    const { data: existing } = await service
+    const { data: existing } = await auth
       .from('user_system_prompts')
       .select('id, prompt_text, version, semester_snapshot, source_documents, created_at')
       .eq('user_id', user.id)
@@ -112,7 +116,7 @@ serve(async (req) => {
 
     // 8) Desativa o ativo atual e cria novo
     if (existing) {
-      await service
+      await auth
         .from('user_system_prompts')
         .update({ is_active: false })
         .eq('id', existing.id);
@@ -120,7 +124,7 @@ serve(async (req) => {
 
     const sourceDocIds: string[] = [];
     if (docs && docs.length > 0) {
-      const { data: idRows } = await service
+      const { data: idRows } = await auth
         .from('documents')
         .select('id')
         .eq('user_id', user.id)
@@ -131,7 +135,7 @@ serve(async (req) => {
     }
 
     const nextVersion = (existing?.version ?? 0) + 1;
-    const { data: inserted, error: insertErr } = await service
+    const { data: inserted, error: insertErr } = await auth
       .from('user_system_prompts')
       .insert({
         user_id: user.id,
@@ -168,11 +172,13 @@ serve(async (req) => {
 
 // =============================================================
 async function aggregateTopicos(
+  // Client autenticado (RLS) — generated_select_via_doc + documents_select_own
+  // garantem que só linhas do próprio usuário são lidas.
   // deno-lint-ignore no-explicit-any
-  service: any,
+  client: any,
   userId: string,
 ): Promise<Record<string, string[]>> {
-  const { data, error } = await service
+  const { data, error } = await client
     .from('generated_content')
     .select('metadata, documents!inner(materia_code, user_id)')
     .eq('type', 'synthesized')

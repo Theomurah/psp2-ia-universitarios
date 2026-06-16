@@ -238,15 +238,29 @@ export default function LoginPage() {
                 {mode === 'signup' && (
                   <label className="field">
                     <span>Nome completo</span>
-                    <input type="text" autoComplete="name" placeholder="Theo Murah" {...register('full_name')} />
-                    {errors.full_name && <em className="error">{errors.full_name.message}</em>}
+                    <input
+                      type="text"
+                      autoComplete="name"
+                      placeholder="Theo Murah"
+                      aria-invalid={errors.full_name ? true : undefined}
+                      aria-describedby={errors.full_name ? 'login-err-full-name' : undefined}
+                      {...register('full_name')}
+                    />
+                    {errors.full_name && <em id="login-err-full-name" role="alert" className="error">{errors.full_name.message}</em>}
                   </label>
                 )}
 
                 <label className="field">
                   <span>Email</span>
-                  <input type="email" autoComplete="email" placeholder="seuemail@aluno.unb.br" {...register('email')} />
-                  {errors.email && <em className="error">{errors.email.message}</em>}
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="seuemail@aluno.unb.br"
+                    aria-invalid={errors.email ? true : undefined}
+                    aria-describedby={errors.email ? 'login-err-email' : undefined}
+                    {...register('email')}
+                  />
+                  {errors.email && <em id="login-err-email" role="alert" className="error">{errors.email.message}</em>}
                 </label>
 
                 {mode !== 'magic' && (
@@ -256,6 +270,8 @@ export default function LoginPage() {
                       type="password"
                       autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                       placeholder={mode === 'signup' ? 'Mínimo 12 caracteres' : '••••••'}
+                      aria-invalid={errors.password ? true : undefined}
+                      aria-describedby={errors.password ? 'login-err-password' : undefined}
                       {...register('password')}
                     />
                     {mode === 'signup' && strength && pw.length > 0 && (
@@ -268,13 +284,18 @@ export default function LoginPage() {
                         <small>Força: {strength.label}</small>
                       </div>
                     )}
-                    {errors.password && <em className="error">{errors.password.message}</em>}
+                    {errors.password && <em id="login-err-password" role="alert" className="error">{errors.password.message}</em>}
                   </label>
                 )}
 
                 {mode === 'signup' && (
                   <label className="field checkbox">
-                    <input type="checkbox" {...register('consent')} />
+                    <input
+                      type="checkbox"
+                      aria-invalid={errors.consent ? true : undefined}
+                      aria-describedby={errors.consent ? 'login-err-consent' : undefined}
+                      {...register('consent')}
+                    />
                     <span>
                       Li e aceito os{' '}
                       <Link to="/termos" target="_blank" rel="noopener">termos de uso</Link>
@@ -282,7 +303,7 @@ export default function LoginPage() {
                       <Link to="/privacidade" target="_blank" rel="noopener">política de privacidade</Link>.
                     </span>
                     {errors.consent && (
-                      <em className="error" style={{ flexBasis: '100%' }}>{errors.consent.message as string}</em>
+                      <em id="login-err-consent" role="alert" className="error" style={{ flexBasis: '100%' }}>{errors.consent.message as string}</em>
                     )}
                   </label>
                 )}

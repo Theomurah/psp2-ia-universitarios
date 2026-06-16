@@ -22,8 +22,12 @@ export function useIsAdmin() {
     queryFn: async (): Promise<boolean> => {
       const { data, error } = await supabase.rpc('is_admin');
       if (error) {
+        // Lança em vez de retornar false: falha transitória da RPC não pode ser
+        // cacheada como "não-admin" por 5 min (staleTime) — o throw deixa o retry
+        // do React Query agir e `data` permanece undefined (= "ainda não sei"),
+        // nunca false (= "sei que não é admin"). Auditoria 2026-06-10, WEB-HOOKS-LIB-06.
         log.warn('rpc_failed', { rpc_name: 'is_admin', ...log.fromError(error) });
-        return false;
+        throw error;
       }
       return data === true;
     },

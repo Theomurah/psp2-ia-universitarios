@@ -12,7 +12,7 @@
  * [extra] Feature inteira — não estava no backlog original (T17 tratava só do login).
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -90,9 +90,15 @@ export default function OnboardingPage() {
     },
   });
 
-  // Pré-preencher com profile carregado (caso usuário volte ao onboarding)
+  // Pré-preenche o formulário UMA única vez (caso usuário volte ao onboarding).
+  // Guard por ref (WEB-ROUTES-01): o objeto `user` ganha nova identidade a cada
+  // evento de auth (TOKEN_REFRESHED em background, refoco de aba) — sem o guard,
+  // o form.reset() descartaria tudo que o aluno estava digitando.
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (initializedRef.current) return;
     if (profile) {
+      initializedRef.current = true;
       form.reset({
         full_name: profile.full_name ?? (user?.user_metadata?.full_name as string ?? ''),
         curso: profile.curso ?? '',
@@ -101,7 +107,9 @@ export default function OnboardingPage() {
           ? profile.materias
           : [{ code: '', nome: '', horarios: [] }],
       });
-    } else if (user?.user_metadata?.full_name) {
+    } else if (user?.user_metadata?.full_name && !form.getValues('full_name')) {
+      // Fallback (profile ainda carregando): só preenche se o campo está vazio,
+      // pra não sobrescrever o que o aluno já digitou.
       form.setValue('full_name', user.user_metadata.full_name as string);
     }
   }, [profile, user, form]);
@@ -223,9 +231,15 @@ function StepWelcome({ form }: { form: UseFormReturn<ProfileForm> }) {
       <div className="onboarding-body">
         <label className="field">
           <span>Como devemos te chamar?</span>
-          <input type="text" placeholder="Theo Murah" {...form.register('full_name')} />
+          <input
+            type="text"
+            placeholder="Theo Murah"
+            aria-invalid={form.formState.errors.full_name ? true : undefined}
+            aria-describedby={form.formState.errors.full_name ? 'onb-err-full-name' : undefined}
+            {...form.register('full_name')}
+          />
           {form.formState.errors.full_name && (
-            <em className="error">{form.formState.errors.full_name.message}</em>
+            <em id="onb-err-full-name" role="alert" className="error">{form.formState.errors.full_name.message}</em>
           )}
         </label>
       </div>
@@ -243,16 +257,28 @@ function StepCourse({ form }: { form: UseFormReturn<ProfileForm> }) {
       <div className="onboarding-body">
         <label className="field">
           <span>Curso</span>
-          <input type="text" placeholder="Engenharia de Produção" {...form.register('curso')} />
+          <input
+            type="text"
+            placeholder="Engenharia de Produção"
+            aria-invalid={form.formState.errors.curso ? true : undefined}
+            aria-describedby={form.formState.errors.curso ? 'onb-err-curso' : undefined}
+            {...form.register('curso')}
+          />
           {form.formState.errors.curso && (
-            <em className="error">{form.formState.errors.curso.message}</em>
+            <em id="onb-err-curso" role="alert" className="error">{form.formState.errors.curso.message}</em>
           )}
         </label>
         <label className="field">
           <span>Semestre atual</span>
-          <input type="text" placeholder="2026.1" {...form.register('semestre_atual')} />
+          <input
+            type="text"
+            placeholder="2026.1"
+            aria-invalid={form.formState.errors.semestre_atual ? true : undefined}
+            aria-describedby={form.formState.errors.semestre_atual ? 'onb-err-semestre' : undefined}
+            {...form.register('semestre_atual')}
+          />
           {form.formState.errors.semestre_atual && (
-            <em className="error">{form.formState.errors.semestre_atual.message}</em>
+            <em id="onb-err-semestre" role="alert" className="error">{form.formState.errors.semestre_atual.message}</em>
           )}
         </label>
       </div>

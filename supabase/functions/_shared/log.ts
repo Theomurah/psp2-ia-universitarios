@@ -61,22 +61,42 @@ function truncate(value: string, max = 200): string {
 }
 
 /**
- * Sanitiza um objeto de fields: remove chaves sensíveis e trunca strings longas.
+ * Profundidade máxima de sanitização recursiva. Objetos aninhados além
+ * desse nível são substituídos por '[depth-limit]' — evita custo/ciclos
+ * em estruturas profundas e garante que nada escape da redação.
  */
-function sanitizeFields(fields: LogFields): LogFields {
-  const out: LogFields = {};
-  for (const [key, value] of Object.entries(fields)) {
-    if (REDACT_KEYS.has(key.toLowerCase())) {
-      out[key] = '[redacted]';
-      continue;
-    }
-    if (typeof value === 'string') {
-      out[key] = truncate(value, 500);
-    } else {
-      out[key] = value;
-    }
+const SANITIZE_MAX_DEPTH = 4;
+
+/**
+ * Sanitiza um valor recursivamente:
+ *   - chaves em REDACT_KEYS viram '[redacted]' em QUALQUER nível de aninhamento
+ *     (antes só o nível raiz era redigido — auditoria 2026-06-10);
+ *   - strings são truncadas (500 chars);
+ *   - arrays/objetos são percorridos até SANITIZE_MAX_DEPTH.
+ * Mesma semântica espelhada no front (apps/web/src/lib/log.ts).
+ */
+function sanitizeValue(value: unknown, depth: number): unknown {
+  if (typeof value === 'string') return truncate(value, 500);
+  if (value === null || typeof value !== 'object') return value;
+  if (depth >= SANITIZE_MAX_DEPTH) return '[depth-limit]';
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item, depth + 1));
+  }
+  const out: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+    out[key] = REDACT_KEYS.has(key.toLowerCase())
+      ? '[redacted]'
+      : sanitizeValue(v, depth + 1);
   }
   return out;
+}
+
+/**
+ * Sanitiza um objeto de fields: remove chaves sensíveis (inclusive em objetos
+ * aninhados) e trunca strings longas.
+ */
+function sanitizeFields(fields: LogFields): LogFields {
+  return sanitizeValue(fields, 0) as LogFields;
 }
 
 /**

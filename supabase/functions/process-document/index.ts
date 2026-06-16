@@ -13,12 +13,15 @@
  * Hardening:
  * - Autorização obrigatória: Bearer = SERVICE_ROLE_KEY (chamada interna)
  *   OU JWT do user cujo id == job.user_id
+ *   OU JWT de admin (is_admin via profiles) — usado pelo requeue do /admin
+ *   (RPC admin_requeue_job → invoke process-document), que fecha o ciclo de
+ *   reprocessamento de jobs presos. Origem: auditoria 2026-06-10.
  * - Sem essa validação, qualquer um com UUID podia disparar processamento.
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { z } from 'https://esm.sh/zod@3.23.8';
-import { handleCorsPrefligh } from '../_shared/cors.ts';
+import { handleCorsPreflight } from '../_shared/cors.ts';
 import { createAuthClient, createServiceClient } from '../_shared/supabase-client.ts';
 import {
   jsonResponse,
@@ -28,6 +31,7 @@ import {
   parseJsonBody,
 } from '../_shared/http.ts';
 import { parseDocument } from '../_shared/parsers.ts';
+import { getModelConfig } from '../_shared/models.ts';
 import { classify, synthesize, synthesizeChunked, compress } from '../_shared/pipeline.ts';
 import { CHUNK_THRESHOLD } from '../_shared/chunking.ts';
 import {
@@ -67,7 +71,7 @@ const ProcessDocumentBodySchema = z.object({
 });
 
 serve(async (req) => {
-  const cors = handleCorsPrefligh(req);
+  const cors = handleCorsPreflight(req);
   if (cors) return cors;
 
   try {
@@ -85,19 +89,19 @@ serve(async (req) => {
     const { job_id } = parsed.data;
 
     // Autorização: precisa ser service_role (chamada interna do ingest-document)
-    // OU JWT de usuário dono do job. Sem isso, qualquer um com job_id podia
-    // disparar processamento.
+    // OU JWT de usuário dono do job OU JWT de admin (requeue via /admin).
+    // Sem isso, qualquer um com job_id podia disparar processamento.
     const auth = await authorizeProcessDocument(req, job_id);
     if (!auth.ok) {
       return errorResponse(req, auth.code, auth.status);
     }
 
-    // Rate limit só para chamadas de usuário (re-disparo manual). As chamadas
-    // internas service_role (ingest → process) são parte do fluxo normal e não
-    // passam por aqui. Reprocessar é caro (pipeline LLM completo): 10/min por
-    // usuário corta loop que queimaria quota OpenRouter.
+    // Rate limit só para chamadas de usuário/admin (re-disparo manual). As
+    // chamadas internas service_role (ingest → process) são parte do fluxo
+    // normal e não passam por aqui. Reprocessar é caro (pipeline LLM completo):
+    // 10/min por usuário corta loop que queimaria quota OpenRouter.
     // Origem: auditoria 2026-05-28 (Segurança, achado A1).
-    if (auth.via === 'user') {
+    if (auth.via !== 'service') {
       const rl = checkRateLimit(`process:${auth.userId}`, { max: 10, windowSec: 60 });
       if (!rl.ok) {
         log.warn('rate_limited', { user_id: auth.userId, endpoint: 'process-document', window_sec: 60 });
@@ -116,14 +120,14 @@ serve(async (req) => {
 });
 
 // =============================================================
-// Autorização: service_role bearer OU JWT do dono do job
+// Autorização: service_role bearer OU JWT do dono do job OU JWT de admin
 // =============================================================
 async function authorizeProcessDocument(
   req: Request,
   jobId: string,
 ): Promise<
   | { ok: true; via: 'service' }
-  | { ok: true; via: 'user'; userId: string }
+  | { ok: true; via: 'user' | 'admin'; userId: string }
   | { ok: false; code: string; status: number }
 > {
   const authHeader = req.headers.get('Authorization') ?? '';
@@ -145,6 +149,9 @@ async function authorizeProcessDocument(
     return { ok: false, code: 'unauthorized', status: 401 };
   }
 
+  // service_role necessário aqui: o requester ainda não foi confirmado como
+  // dono do job — a leitura de jobs.user_id precisa bypassar RLS pra conseguir
+  // distinguir 404 (job não existe) de 403 (job de outro usuário).
   const service = createServiceClient();
   const { data: job, error: jobErr } = await service
     .from('jobs')
@@ -159,6 +166,24 @@ async function authorizeProcessDocument(
     return { ok: false, code: 'not_found', status: 404 };
   }
   if (job.user_id !== user.id) {
+    // Caso 3: JWT de admin — fecha o ciclo do requeue (/admin → RPC
+    // admin_requeue_job → invoke process-document). Leitura via service
+    // client direto em profiles.is_admin: a RPC public.is_admin() depende
+    // de auth.uid(), que não existe no contexto do service client.
+    // Origem: auditoria 2026-06-10 (requeue deixava job morto em pending).
+    const { data: profile, error: profErr } = await service
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (profErr) {
+      log.error('authorize_read_profile_failed', { job_id: jobId, ...log.fromError(profErr) });
+      return { ok: false, code: 'internal_error', status: 500 };
+    }
+    if (profile?.is_admin === true) {
+      log.info('authorize_admin_dispatch', { job_id: jobId, admin_id: user.id });
+      return { ok: true, via: 'admin', userId: user.id };
+    }
     // Sinal de segurança: usuário autenticado tentou disparar job de outro.
     log.warn('authorize_owner_mismatch', { job_id: jobId, requester_id: user.id });
     return { ok: false, code: 'forbidden', status: 403 };
@@ -169,14 +194,27 @@ async function authorizeProcessDocument(
 // =============================================================
 // Pipeline principal — roda em background via waitUntil
 // =============================================================
+// Máximo de tentativas por job — alinhado ao watchdog planejado no roadmap
+// (CLAUDE.md: `attempt_count < 2`). A tabela jobs não tem coluna max_retries.
+const MAX_ATTEMPTS = 2;
+
 async function runPipeline(jobId: string): Promise<void> {
+  // service_role necessário em todo o runPipeline: roda em background via
+  // EdgeRuntime.waitUntil SEM JWT de usuário no contexto (inclusive quando o
+  // gatilho é a chamada interna ingest → process). RLS via authClient não
+  // funcionaria aqui. Não trocar por createAuthClient.
   const service = createServiceClient();
 
   // Claim atômico: tenta transicionar pending → processing.
-  // Se afetar 0 linhas, é porque outro worker já está rodando (ou o job
-  // já terminou) — retornamos early, evitando dupla cobrança de LLM.
+  // Também aceita jobs `failed` com tentativas restantes — re-disparo manual
+  // do dono (via === 'user') era no-op antes: nada devolvia o job pra pending
+  // e o failed ficava irrecuperável sem SQL manual. error_reason/completed_at
+  // são resetados no MESMO update pra não vazar estado da execução anterior.
+  // Se afetar 0 linhas, outro worker já está rodando, o job já terminou ou
+  // esgotou as tentativas — retornamos early, evitando dupla cobrança de LLM.
   // Origem: auditoria 2026-05-26 (Agente 6 — Banco, achado D1; cobre
-  // também Agente 1 — A1 sobre `started_at` ser sobrescrito).
+  // também Agente 1 — A1 sobre `started_at` ser sobrescrito) e
+  // auditoria 2026-06-10 (EDGE-HANDLERS-05).
   const startedAt = new Date().toISOString();
   const { data: claimed, error: claimErr } = await service
     .from('jobs')
@@ -185,9 +223,11 @@ async function runPipeline(jobId: string): Promise<void> {
       started_at: startedAt,
       current_step: 'parse',
       progress_percent: 0,
+      error_reason: null,
+      completed_at: null,
     })
     .eq('id', jobId)
-    .eq('status', 'pending')
+    .or(`status.eq.pending,and(status.eq.failed,attempt_count.lt.${MAX_ATTEMPTS})`)
     .select('id');
 
   if (claimErr) {
@@ -195,8 +235,9 @@ async function runPipeline(jobId: string): Promise<void> {
     return;
   }
   if (!claimed || claimed.length === 0) {
-    // Outro worker já claim'ou ou o job não está em pending — sai sem custo.
-    log.warn('job_claim_skipped', { job_id: jobId, reason: 'already_claimed_or_not_pending' });
+    // Outro worker já claim'ou, o job está em estado terminal não-retryável
+    // ou esgotou as tentativas — sai sem custo.
+    log.warn('job_claim_skipped', { job_id: jobId, reason: 'already_claimed_or_not_claimable' });
     return;
   }
 
@@ -243,6 +284,9 @@ async function runPipeline(jobId: string): Promise<void> {
     // pg_cron consigam diferenciar "falha na 1ª tentativa" de "falha
     // crônica após N retentativas". O retry automático em si fica pro
     // batch B-A7 (watchdog pg_cron — ver CLAUDE.md / Roadmap operacional).
+    // Nota: o incremento é select-then-update (não-atômico); a corrida é
+    // teórica graças ao claim atômico. Tornar atômico exige RPC SQL
+    // (`attempt_count = attempt_count + 1`) — fora do escopo desta função.
     // Origem: auditoria 2026-05-26 (Agente 1 A5 + Agente 6 A1).
     const { data: prev } = await service
       .from('jobs')
@@ -250,12 +294,12 @@ async function runPipeline(jobId: string): Promise<void> {
       .eq('id', jobId)
       .single();
     const nextAttempt = (prev?.attempt_count ?? 0) + 1;
-    await service.from('jobs').update({
+    await updateJobChecked(service, jobId, {
       status: 'failed',
       error_reason: reason,
       completed_at: new Date().toISOString(),
       attempt_count: nextAttempt,
-    }).eq('id', jobId);
+    });
   };
 
   try {
@@ -277,7 +321,15 @@ async function runPipeline(jobId: string): Promise<void> {
     if (dlErr || !fileBlob) throw new Error(`Falha ao baixar do Storage: ${dlErr?.message}`);
     const buffer = new Uint8Array(await fileBlob.arrayBuffer());
     const mimeType = fileBlob.type || undefined;
-    const parseResult = await parseDocument(buffer, doc.format, mimeType);
+    // Modelo de OCR resolvido em runtime via getModelConfig() — cascata
+    // app_settings (`model_vision`, editável no /admin) → env VISION_MODEL/
+    // VISION_PROVIDER → default. Antes getVisionProvider() lia só env e a
+    // config do painel era ignorada.
+    // Origem: auditoria 2026-06-10 (EDGE-HANDLERS-07).
+    const modelConfig = await getModelConfig();
+    const parseResult = await parseDocument(buffer, doc.format, mimeType, {
+      visionModel: modelConfig.vision,
+    });
     await logEvent('parse', 'success', {
       duration_ms: Date.now() - t0,
       llm_model: parseResult.metadata.vision_provider,
@@ -361,6 +413,9 @@ async function runPipeline(jobId: string): Promise<void> {
     };
 
     const synth = await synthesizeChunked(synthInput, {
+      // Propaga retries transitórios do LLM pra job_events, igual classify e
+      // compress — fecha o SHARED-FUNCTIONS-07 ponta-a-ponta.
+      onRetry: makeRetryHook('synthesize'),
       onChunkEvent: async (e) => {
         const eventType = e.kind.endsWith('_success') ? 'success' : 'start';
         const stepName = e.kind.startsWith('chunk')
@@ -401,28 +456,64 @@ async function runPipeline(jobId: string): Promise<void> {
       return await fail(`Síntese rejeitada: ${[...structural.errors, ...quantitative.errors, ...semantic.errors].join('; ')}`, 'synthesize');
     }
 
+    // Saída cortada por max_tokens mesmo após o retry automático com orçamento
+    // dobrado (pipeline.ts) — a síntese existe mas pode estar incompleta no
+    // final. Registra warning e rebaixa o status final (nunca silencioso).
+    // Origem: auditoria 2026-06-10 (SHARED-FUNCTIONS, contrato `truncated`).
+    if (synth.truncated) {
+      await logEvent('synthesize', 'warning', {
+        message: 'Saída truncada por max_tokens (mesmo após retry com orçamento dobrado) — síntese pode estar incompleta no final',
+      });
+    }
+
     // Camada 4 — LLM-as-judge (T25). Roda quando 2-3 anteriores deram warning
     // OU em 5% dos jobs como amostragem de qualidade. Não bloqueia em caso de
     // falha (validateJudge devolve passed:true se LLM indisponível).
     // Origem: auditoria 2026-05-26 (Agente 1, achado A3).
     const judgeShouldRun = synthVerdict === 'warning' || Math.random() < 0.05;
-    let judgeScore: number | null = semantic.score;
+    // validation_score é gravado SEMPRE na escala 0–1: validateSemantic já
+    // devolve 0–1 e a média do judge (0–10, validation.ts) é normalizada
+    // dividindo por 10 antes do insert. A camada de origem fica em
+    // metadata.validation_layer ('semantic' | 'judge') — antes a coluna
+    // misturava as duas escalas sem nenhum sinal de qual era qual.
+    // Origem: auditoria 2026-06-10 (EDGE-HANDLERS-10).
+    let validationScore: number | null = semantic.score;
+    let validationLayer: 'semantic' | 'judge' = 'semantic';
     if (judgeShouldRun) {
       const judge = await validateJudge(parseResult.texto, synth.result.markdown);
-      judgeScore = judge.score > 0 ? judge.score : semantic.score;
+      if (judge.score > 0) {
+        validationScore = judge.score / 10;
+        validationLayer = 'judge';
+      }
       await logEvent('judge', judge.passed ? 'success' : 'warning', {
-        message: judge.comment || judge.warnings.join('; ') || judge.errors.join('; ') || null,
+        // undefined (não null): logEvent tipa message como string opcional e
+        // o JSON do insert omite chaves undefined — efeito igual ao null.
+        message: judge.comment || judge.warnings.join('; ') || judge.errors.join('; ') || undefined,
       });
     }
 
-    // Salva o markdown sintetizado
-    await service.from('generated_content').insert({
+    // Salva o markdown sintetizado. UPSERT consciente: generated_content tem
+    // unique (document_id, type) — em reprocessamento (retry de job failed,
+    // reset manual) o insert plain violava a unique e o `{ error }` ignorado
+    // fazia a síntese nova ser descartada em silêncio, com o job concluindo
+    // como completed apontando pro conteúdo antigo.
+    // Origem: auditoria 2026-06-10 (EDGE-HANDLERS-06).
+    const { error: synthPersistErr } = await service.from('generated_content').upsert({
       document_id: doc.id,
       type: 'synthesized',
       markdown: synth.result.markdown,
-      metadata: synth.result.metadata,
-      validation_score: judgeScore,
-    });
+      metadata: { ...synth.result.metadata, validation_layer: validationLayer },
+      validation_score: validationScore,
+    }, { onConflict: 'document_id,type' });
+    if (synthPersistErr) {
+      log.error('generated_content_persist_failed', {
+        job_id: jobId,
+        content_type: 'synthesized',
+        ...log.fromError(synthPersistErr),
+      });
+      // Sem conteúdo persistido, concluir como completed seria mentira.
+      return await fail('Falha ao salvar a síntese gerada', 'synthesize');
+    }
 
     // 4) COMPRESS (modo compacta)
     await setStep('compress', 70);
@@ -438,12 +529,51 @@ async function runPipeline(jobId: string): Promise<void> {
       cost_usd: comp.usage.cost_usd,
     });
 
-    await service.from('generated_content').insert({
+    // Validação quantitativa da compressão — antes só a síntese era validada
+    // e uma compressão que perdesse todas as fórmulas passava como sucesso.
+    // Perda de fórmula é ERRO (validateQuantitative); ratio fora da faixa e
+    // avisos "⚠️ COBRADO NA PROVA" perdidos são warnings. Em rejected NÃO
+    // falhamos o job (a síntese íntegra já está salva): registramos job_event
+    // de erro e rebaixamos o status final pra completed_with_warning.
+    // Origem: auditoria 2026-06-10 (EDGE-HANDLERS-08).
+    const compQuant = validateQuantitative({
+      chars_input: synth.result.markdown.length,
+      chars_output: comp.result.markdown.length,
+      formulas_input: synth.result.metadata.formulas_count,
+      formulas_output: comp.result.metadata.formulas_preservadas,
+      modo: 'compact',
+    });
+    if (!comp.result.metadata.avisos_preservados) {
+      compQuant.warnings.push('Avisos "⚠️ COBRADO NA PROVA" não preservados na compressão');
+    }
+    // Mesmo contrato `truncated` da síntese — compressão cortada por max_tokens
+    // vira warning (artefato principal, a síntese, já está íntegro e salvo).
+    if (comp.truncated) {
+      compQuant.warnings.push('Saída truncada por max_tokens — compressão pode estar incompleta no final');
+    }
+    const compVerdict = decideVerdict([compQuant]);
+    if (compVerdict === 'rejected') {
+      await logEvent('compress', 'error', { message: compQuant.errors.join('; ') });
+    } else if (compVerdict === 'warning') {
+      await logEvent('compress', 'warning', { message: compQuant.warnings.join('; ') });
+    }
+
+    // UPSERT consciente + erro checado — mesmo racional do insert da síntese
+    // (unique document_id,type). Origem: EDGE-HANDLERS-06.
+    const { error: compressPersistErr } = await service.from('generated_content').upsert({
       document_id: doc.id,
       type: 'compressed_compact',
       markdown: comp.result.markdown,
       metadata: comp.result.metadata,
-    });
+    }, { onConflict: 'document_id,type' });
+    if (compressPersistErr) {
+      log.error('generated_content_persist_failed', {
+        job_id: jobId,
+        content_type: 'compressed_compact',
+        ...log.fromError(compressPersistErr),
+      });
+      return await fail('Falha ao salvar a compressão gerada', 'compress');
+    }
 
     // 5) NOMENCLATURE
     await setStep('nomenclature', 85);
@@ -493,13 +623,17 @@ async function runPipeline(jobId: string): Promise<void> {
     const totalCost = cls.usage.cost_usd + synth.usage.cost_usd + comp.usage.cost_usd;
     // needs_review tem prioridade sobre completed_with_warning: classificação
     // incerta pede olhar humano (qual matéria?), sinal mais forte que um warning
-    // cosmético da síntese.
+    // cosmético da síntese. Compressão rejeitada (fórmulas perdidas) rebaixa
+    // pra completed_with_warning — EDGE-HANDLERS-08.
     const finalStatus = classificationNeedsReview
       ? 'needs_review'
-      : synthVerdict === 'warning'
+      : synthVerdict === 'warning' || synth.truncated || compVerdict === 'rejected'
         ? 'completed_with_warning'
         : 'completed';
-    await service.from('jobs').update({
+    // Escrita terminal verificada (com 1 retentativa): se falhasse em silêncio
+    // o job ficaria preso em 'processing' pra sempre, sem rastro do motivo.
+    // Origem: auditoria 2026-06-10 (EDGE-HANDLERS-09).
+    await updateJobChecked(service, jobId, {
       status: finalStatus,
       current_step: null,
       progress_percent: 100,
@@ -508,7 +642,7 @@ async function runPipeline(jobId: string): Promise<void> {
       chars_compression: comp.result.markdown.length,
       cost_usd_total: totalCost,
       completed_at: new Date().toISOString(),
-    }).eq('id', jobId);
+    });
     await service.from('documents').update({
       processed_at: new Date().toISOString(),
     }).eq('id', doc.id);
@@ -525,6 +659,29 @@ async function runPipeline(jobId: string): Promise<void> {
   } catch (err) {
     log.error('pipeline_failed', { job_id: jobId, ...log.fromError(err) });
     await fail((err as Error).message, 'unknown');
+  }
+}
+
+/**
+ * Update terminal de jobs com checagem de erro + 1 retentativa.
+ *
+ * supabase-js NÃO lança em erro PostgREST (retorna `{ error }`) — sem essa
+ * checagem, uma falha transitória (rede, restart do PostgREST) deixava o job
+ * preso em 'processing' pra sempre sem nenhum log do motivo.
+ * Origem: auditoria 2026-06-10 (EDGE-HANDLERS-09).
+ */
+async function updateJobChecked(
+  service: ReturnType<typeof createServiceClient>,
+  jobId: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  let { error } = await service.from('jobs').update(patch).eq('id', jobId);
+  if (error) {
+    log.error('terminal_update_failed', { job_id: jobId, will_retry: true, ...log.fromError(error) });
+    ({ error } = await service.from('jobs').update(patch).eq('id', jobId));
+    if (error) {
+      log.error('terminal_update_failed', { job_id: jobId, will_retry: false, ...log.fromError(error) });
+    }
   }
 }
 
@@ -586,16 +743,23 @@ async function tryUploadToDrive(args: {
   }
 
   // Persiste eventuais novos tokens (Google às vezes rotaciona — inclusive o
-  // refresh_token; descartá-lo quebraria todo refresh futuro até reconectar)
+  // refresh_token; descartá-lo quebraria todo refresh futuro até reconectar).
+  // ATENÇÃO: PostgrestBuilder só implementa `then` — chamar `.catch()` nele
+  // lançava TypeError sempre que o refresh acontecia (qualquer upload >1h
+  // após conectar o Drive), derrubando o pipeline inteiro DEPOIS do custo
+  // LLM já gasto. Além disso, builders supabase nunca rejeitam em erro de
+  // DB — o erro vem em `{ error }` e precisa ser checado explicitamente.
+  // Origem: auditoria 2026-06-10 (EDGE-HANDLERS-04).
   if (token.access_token !== profile.google_access_token) {
-    await service.from('profiles').update({
+    const { error: tokenPersistErr } = await service.from('profiles').update({
       google_access_token: token.access_token,
       google_refresh_token: token.refresh_token,
       google_token_expires_at: new Date(token.expires_at).toISOString(),
-    }).eq('id', profile.id).catch((err: unknown) => {
+    }).eq('id', profile.id);
+    if (tokenPersistErr) {
       // Não bloqueia o upload — migration 0004 pode não estar aplicada.
-      log.warn('token_persist_failed', { user_id: profile.id, ...log.fromError(err) });
-    });
+      log.warn('token_persist_failed', { user_id: profile.id, ...log.fromError(tokenPersistErr) });
+    }
   }
 
   const t0 = Date.now();
