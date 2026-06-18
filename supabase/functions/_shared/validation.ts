@@ -14,7 +14,7 @@
 import { callLLMWithRetry, parseJsonFromLLM } from './openrouter.ts';
 import { sandboxUserInput, SANDBOX_INSTRUCTION } from './prompts.ts';
 import { TARGETS } from '../../../packages/shared/src/constants.ts';
-import { getModelConfig } from './models.ts';
+import { getModelConfig, getModelParams } from './models.ts';
 import type { ValidationResult, ClassificationResult } from '../../../packages/shared/src/types.ts';
 
 // =============================================================
@@ -219,6 +219,7 @@ export async function validateJudge(
       temperature: 0.0,
       max_tokens: 512,
       response_format: { type: 'json_object' },
+      params: (await getModelParams()).judge,
     });
 
     const parsed = parseJsonFromLLM<{

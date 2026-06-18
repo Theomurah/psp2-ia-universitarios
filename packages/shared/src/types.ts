@@ -10,6 +10,7 @@ import type {
   PipelineStep,
   TipoDocumento,
 } from './constants.ts';
+import type { CardState, Rating } from './srs.ts';
 
 // =============================================================
 // Profile (extends auth.users)
@@ -174,6 +175,82 @@ export interface UserSystemPrompt {
 
 // (GeneratedContent segue em types.internal.ts — schema-first, lido hoje só
 //  pelo MarkdownPreview com shape inline. Auditoria 2026-05-26 / A4.)
+
+// =============================================================
+// Flashcards (migration 0031) — seção Anki-like
+// =============================================================
+export type FlashcardDeckSource = 'manual' | 'apkg' | 'csv' | 'ai';
+
+export interface FlashcardDeck {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  materia_code: string | null;
+  source: FlashcardDeckSource;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Flashcard {
+  id: string;
+  deck_id: string;
+  user_id: string;
+  front: string;                          // markdown + LaTeX
+  back: string;                           // markdown + LaTeX
+  tags: string[];
+  topico: string | null;
+  source_document_id: string | null;
+  anki_note_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Estado de agendamento SRS persistido (espelha `flashcard_states`). */
+export interface FlashcardStateRecord {
+  card_id: string;
+  user_id: string;
+  state: CardState;
+  ease_factor: number;
+  interval_days: number;
+  repetitions: number;
+  lapses: number;
+  learning_step: number;
+  stability: number | null;               // reservado p/ FSRS
+  difficulty: number | null;              // reservado p/ FSRS
+  due_at: string;
+  last_reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Linha do log append-only de revisões (espelha `flashcard_reviews`). */
+export interface FlashcardReview {
+  id: string;
+  card_id: string;
+  user_id: string;
+  deck_id: string;
+  topico: string | null;
+  rating: Rating;
+  is_correct: boolean;
+  elapsed_ms: number | null;
+  prev_interval_days: number | null;
+  scheduled_interval_days: number | null;
+  prev_ease: number | null;
+  new_ease: number | null;
+  reviewed_at: string;
+}
+
+export interface FlashcardStudySession {
+  id: string;
+  user_id: string;
+  deck_id: string;
+  card_target: number | null;
+  cards_reviewed: number;
+  correct_count: number;
+  started_at: string;
+  ended_at: string | null;
+}
 
 // =============================================================
 // LLM call I/O

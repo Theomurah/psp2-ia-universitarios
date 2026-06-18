@@ -16,6 +16,7 @@ import { Buffer } from 'node:buffer';
 
 import type { FormatoDocumento } from '../../../packages/shared/src/constants.ts';
 import { getVisionProvider, VisionError } from './vision/index.ts';
+import type { ModelExtraParams } from './openrouter.ts';
 
 export interface ParseResult {
   texto: string;
@@ -50,6 +51,8 @@ export class ParseError extends Error {
  */
 export interface ParseOptions {
   visionModel?: string;
+  /** Params avançados do estágio de visão (effort/thinking) — ver getModelParams(). */
+  visionParams?: ModelExtraParams;
 }
 
 // =============================================================
@@ -154,7 +157,7 @@ export async function parseImage(
   try {
     // Override programático (app_settings via /admin) tem prioridade; aliases
     // legados ('claude', 'gemini') são expandidos dentro de getVisionProvider.
-    const provider = getVisionProvider(opts?.visionModel);
+    const provider = getVisionProvider(opts?.visionModel, opts?.visionParams);
     const result = await provider.extractText(buffer, mimeType);
 
     return {

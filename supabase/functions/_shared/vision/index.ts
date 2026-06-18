@@ -21,6 +21,7 @@
 import { VisionProvider } from './types.ts';
 import { OpenRouterVisionProvider } from './openrouter-vision.ts';
 import { createLogger } from '../log.ts';
+import type { ModelExtraParams } from '../openrouter.ts';
 
 const log = createLogger('vision');
 
@@ -37,26 +38,30 @@ const PROVIDER_ALIASES: Record<string, string> = {
   llama: 'meta-llama/llama-3.2-90b-vision-instruct',
 };
 
-export function getVisionProvider(overrideModel?: string): VisionProvider {
+export function getVisionProvider(
+  overrideModel?: string,
+  params?: ModelExtraParams,
+): VisionProvider {
+  const opts = { params };
   // 1) Override programático tem prioridade
   if (overrideModel) {
-    return new OpenRouterVisionProvider(resolveModel(overrideModel));
+    return new OpenRouterVisionProvider(resolveModel(overrideModel), opts);
   }
 
   // 2) VISION_MODEL — caminho recomendado, aceita qualquer string
   const visionModel = Deno.env.get('VISION_MODEL');
   if (visionModel) {
-    return new OpenRouterVisionProvider(resolveModel(visionModel));
+    return new OpenRouterVisionProvider(resolveModel(visionModel), opts);
   }
 
   // 3) VISION_PROVIDER — alias legado
   const visionProvider = Deno.env.get('VISION_PROVIDER');
   if (visionProvider) {
-    return new OpenRouterVisionProvider(resolveModel(visionProvider));
+    return new OpenRouterVisionProvider(resolveModel(visionProvider), opts);
   }
 
   // 4) Default
-  return new OpenRouterVisionProvider('anthropic/claude-sonnet-4.6');
+  return new OpenRouterVisionProvider('anthropic/claude-sonnet-4.6', opts);
 }
 
 function resolveModel(input: string): string {

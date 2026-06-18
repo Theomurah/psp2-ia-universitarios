@@ -173,6 +173,62 @@ describe('roteamento por provider', () => {
     expect(c.body.max_tokens).toBeUndefined();
   });
 
+  // Modelos novos do catálogo: versões pontuadas (gpt-5.4-nano, gpt-5.1, …) também
+  // são reasoning e precisam do mesmo tratamento que o gpt-5-mini.
+  it.each([
+    'openai/gpt-5.4-nano',
+    'openai/gpt-5.4-mini',
+    'openai/gpt-5.1',
+    'openai/gpt-5.4',
+    'openai/gpt-5',
+    'openai/gpt-5-nano',
+  ])('%s (reasoning) → max_completion_tokens + reasoning_effort, sem temperature', async (model) => {
+    Deno.env.set('OPENAI_API_KEY', 'sk-openai');
+    await callLLM({ model, messages: [{ role: 'user', content: 'oi' }], max_tokens: 512 });
+
+    const c = lastCall();
+    expect(c.url).toBe('https://api.openai.com/v1/chat/completions');
+    expect(c.body.model).toBe(model.replace('openai/', ''));
+    expect(c.body.max_completion_tokens).toBe(2048);
+    expect(c.body.reasoning_effort).toBe('low');
+    expect(c.body.temperature).toBeUndefined();
+    expect(c.body.max_tokens).toBeUndefined();
+  });
+
+  // Modelos não-reasoning do catálogo (família gpt-4.x / gpt-4o) usam o caminho
+  // clássico: temperature + max_tokens.
+  it.each([
+    'openai/gpt-4.1-nano',
+    'openai/gpt-4.1-mini',
+    'openai/gpt-4o-mini',
+    'openai/gpt-4o',
+  ])('%s (não-reasoning) → temperature + max_tokens', async (model) => {
+    Deno.env.set('OPENAI_API_KEY', 'sk-openai');
+    await callLLM({ model, messages: [{ role: 'user', content: 'oi' }], temperature: 0.1, max_tokens: 4096 });
+
+    const c = lastCall();
+    expect(c.body.model).toBe(model.replace('openai/', ''));
+    expect(c.body.temperature).toBe(0.1);
+    expect(c.body.max_tokens).toBe(4096);
+    expect(c.body.max_completion_tokens).toBeUndefined();
+    expect(c.body.reasoning_effort).toBeUndefined();
+  });
+
+  // Variantes "-chat" NÃO são reasoning, mesmo nas versões pontuadas.
+  it.each(['openai/gpt-5-chat', 'openai/gpt-5.1-chat'])(
+    '%s (variante chat) NÃO é tratado como reasoning',
+    async (model) => {
+      Deno.env.set('OPENAI_API_KEY', 'sk-openai');
+      await callLLM({ model, messages: [{ role: 'user', content: 'oi' }], max_tokens: 4096 });
+
+      const c = lastCall();
+      expect(c.body.temperature).toBe(0.2);
+      expect(c.body.max_tokens).toBe(4096);
+      expect(c.body.reasoning_effort).toBeUndefined();
+      expect(c.body.max_completion_tokens).toBeUndefined();
+    },
+  );
+
   it('openai/ SEM OPENAI_API_KEY → cai no OpenRouter com a string completa', async () => {
     // só OPENROUTER_API_KEY está setado (beforeEach)
     await callLLM({ model: 'openai/gpt-4o-mini', messages: [{ role: 'user', content: 'oi' }] });
@@ -325,5 +381,97 @@ describe('parseJsonFromLLM', () => {
       expect(e.message).toContain(`content_length=${studentContent.length}`);
       expect((e.body as { content_snippet: string }).content_snippet).toContain('TRECHO-SENSIVEL-DO-ALUNO');
     }
+  });
+});
+
+describe('params avançados por modelo', () => {
+  function lastBody() {
+    const calls = vi.mocked(fetch).mock.calls;
+    return JSON.parse((calls[calls.length - 1][1] as RequestInit).body as string);
+  }
+  const anthropicOk = () =>
+    new Response(
+      JSON.stringify({
+        content: [{ type: 'text', text: 'ok' }],
+        model: 'm',
+        usage: { input_tokens: 1, output_tokens: 1 },
+        stop_reason: 'end_turn',
+      }),
+      { status: 200 },
+    );
+
+  it('OpenAI reasoning: reasoning_effort + verbosity configuráveis', async () => {
+    Deno.env.set('OPENAI_API_KEY', 'sk-openai');
+    await callLLM({
+      model: 'openai/gpt-5-mini',
+      messages: [{ role: 'user', content: 'oi' }],
+      max_tokens: 4096,
+      params: { reasoning_effort: 'high', verbosity: 'low' },
+    });
+    const b = lastBody();
+    expect(b.reasoning_effort).toBe('high'); // sobrescreve o default 'low'
+    expect(b.verbosity).toBe('low');
+  });
+
+  it('verbosity é ignorada fora da família gpt-5', async () => {
+    Deno.env.set('OPENAI_API_KEY', 'sk-openai');
+    await callLLM({
+      model: 'openai/o3-mini',
+      messages: [{ role: 'user', content: 'oi' }],
+      params: { verbosity: 'high' },
+    });
+    expect(lastBody().verbosity).toBeUndefined();
+  });
+
+  it('Gemini (OpenAI-compat) recebe reasoning_effort por passthrough', async () => {
+    Deno.env.set('GEMINI_API_KEY', 'sk-gem');
+    await callLLM({
+      model: 'google/gemini-2.5-flash',
+      messages: [{ role: 'user', content: 'oi' }],
+      params: { reasoning_effort: 'medium' },
+    });
+    expect(lastBody().reasoning_effort).toBe('medium');
+  });
+
+  it('Anthropic adaptive: effort vira thinking.adaptive + output_config.effort, sem temperature', async () => {
+    Deno.env.set('ANTHROPIC_API_KEY', 'sk-ant');
+    vi.mocked(fetch).mockResolvedValueOnce(anthropicOk());
+    await callLLM({
+      model: 'anthropic/claude-sonnet-4-6',
+      messages: [{ role: 'user', content: 'oi' }],
+      temperature: 0.2,
+      params: { thinking: { enabled: true, effort: 'high' } },
+    });
+    const b = lastBody();
+    expect(b.thinking).toEqual({ type: 'adaptive' });
+    expect(b.output_config).toEqual({ effort: 'high' });
+    expect(b.temperature).toBeUndefined();
+  });
+
+  it('Anthropic extended: budget_tokens → thinking.enabled + temperature=1 + bump max_tokens', async () => {
+    Deno.env.set('ANTHROPIC_API_KEY', 'sk-ant');
+    vi.mocked(fetch).mockResolvedValueOnce(anthropicOk());
+    await callLLM({
+      model: 'anthropic/claude-haiku-4-5',
+      messages: [{ role: 'user', content: 'oi' }],
+      max_tokens: 512,
+      temperature: 0,
+      params: { thinking: { enabled: true, budget_tokens: 4000 } },
+    });
+    const b = lastBody();
+    expect(b.thinking).toEqual({ type: 'enabled', budget_tokens: 4000 });
+    expect(b.temperature).toBe(1);
+    expect(b.max_tokens).toBe(5024); // 4000 + 1024, pois 512 <= budget
+  });
+
+  it('Anthropic Opus 4.8 NÃO envia temperature (rejeita sampling)', async () => {
+    Deno.env.set('ANTHROPIC_API_KEY', 'sk-ant');
+    vi.mocked(fetch).mockResolvedValueOnce(anthropicOk());
+    await callLLM({
+      model: 'anthropic/claude-opus-4-8',
+      messages: [{ role: 'user', content: 'oi' }],
+      temperature: 0.2,
+    });
+    expect(lastBody().temperature).toBeUndefined();
   });
 });

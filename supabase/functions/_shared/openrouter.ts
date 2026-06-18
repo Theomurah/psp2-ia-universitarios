@@ -38,6 +38,24 @@ export interface LLMMessage {
   content: string | LLMContentPart[];
 }
 
+/**
+ * Params avançados por modelo, configuráveis no /admin/modelos. Cada campo só
+ * é aplicado se o modelo/provider suportar (ver applyOpenAIParams/applyAnthropicThinking).
+ * Schema espelhado no front em `config/modelCapabilities.ts` (mantenha em sync).
+ */
+export interface ModelExtraParams {
+  /** OpenAI reasoning (gpt-5*, o*) + Gemini 2.5 + OpenRouter — profundidade do raciocínio. */
+  reasoning_effort?: 'minimal' | 'low' | 'medium' | 'high';
+  /** OpenAI gpt-5* — quanto o modelo elabora a resposta. */
+  verbosity?: 'low' | 'medium' | 'high';
+  /** Anthropic — thinking (adaptive via effort OU extended via budget_tokens). */
+  thinking?: {
+    enabled?: boolean;
+    effort?: 'low' | 'medium' | 'high' | 'max';
+    budget_tokens?: number;
+  };
+}
+
 export interface LLMCallOptions {
   model: string;                       // ex: "openai/gpt-5-mini", "anthropic/claude-haiku-4-5"
   messages: LLMMessage[];
@@ -47,6 +65,8 @@ export interface LLMCallOptions {
   stream?: boolean;
   /** Timeout do request em ms. Default: env OPENROUTER_TIMEOUT_MS ou 120s. */
   timeout_ms?: number;
+  /** Params avançados (effort/verbosity/thinking) — aplicados conforme o modelo. */
+  params?: ModelExtraParams;
 }
 
 export interface LLMCallResult {
@@ -189,13 +209,25 @@ export function resolveRoute(model: string): ResolvedRoute {
 
 /**
  * Modelos de raciocínio da OpenAI (gpt-5*, o1/o3/o4*) rejeitam `temperature`
- * custom e usam `max_completion_tokens` no lugar de `max_tokens`. gpt-5-chat
- * é a exceção (não é reasoning). Só vale falando direto com a OpenAI/custom —
- * OpenRouter e o endpoint do Gemini normalizam sozinhos.
+ * custom e usam `max_completion_tokens` no lugar de `max_tokens`. As variantes
+ * "-chat" (gpt-5-chat, gpt-5.1-chat, …) NÃO são reasoning — aceitam temperature
+ * e max_tokens normais. Só vale falando direto com a OpenAI/custom — OpenRouter
+ * e o endpoint do Gemini normalizam sozinhos.
  */
 function isOpenAIReasoningModel(model: string): boolean {
   if (/^o\d/.test(model)) return true;
-  return /^gpt-5/.test(model) && !model.startsWith('gpt-5-chat');
+  // Toda a família gpt-5* (gpt-5, gpt-5-mini, gpt-5.4-nano, gpt-5.1, …) é
+  // reasoning, exceto qualquer variante "-chat".
+  return /^gpt-5/.test(model) && !/-chat/.test(model);
+}
+
+/**
+ * Modelos Anthropic que REJEITAM temperature/top_p (HTTP 400 se enviados):
+ * Opus 4.7+ e a linha Fable 5+ têm thinking sempre-ligado e removem sampling.
+ * Para esses, o adapter não envia temperature mesmo que o estágio peça.
+ */
+function anthropicRejectsSampling(model: string): boolean {
+  return /^claude-(opus-4-[7-9]|fable)/i.test(model);
 }
 
 // =============================================================
@@ -224,10 +256,23 @@ async function callLLMOpenAICompat(
     // Floor de tokens: o raciocínio é cobrado dentro do max_completion_tokens;
     // budgets baixos (ex: classify usa 512) podem zerar a resposta.
     body.max_completion_tokens = Math.max(opts.max_tokens ?? 4096, 2048);
-    body.reasoning_effort = 'low';
+    // reasoning_effort configurável no /admin (default 'low' pra não estourar custo).
+    body.reasoning_effort = opts.params?.reasoning_effort ?? 'low';
+    // verbosity é só da família gpt-5.
+    if (opts.params?.verbosity && /^gpt-5/.test(route.model)) {
+      body.verbosity = opts.params.verbosity;
+    }
   } else {
     body.temperature = opts.temperature ?? 0.2;
     body.max_tokens = opts.max_tokens ?? 4096;
+    // Gemini 2.5 e OpenRouter (OpenAI-compat) aceitam reasoning_effort por
+    // passthrough — modelos de raciocínio desses caminhos respeitam o campo.
+    if (
+      opts.params?.reasoning_effort &&
+      (route.provider.id === 'google' || route.provider.id === 'openrouter')
+    ) {
+      body.reasoning_effort = opts.params.reasoning_effort;
+    }
   }
   if (opts.response_format) body.response_format = opts.response_format;
 
@@ -353,7 +398,33 @@ async function callLLMAnthropic(
     max_tokens: opts.max_tokens ?? 4096,
   };
   if (finalSystem) body.system = finalSystem;
-  if (opts.temperature !== undefined) body.temperature = opts.temperature;
+
+  const rejectsSampling = anthropicRejectsSampling(route.model);
+  // Sampling base (só se o modelo aceitar e nenhum thinking sobrescrever depois).
+  if (!rejectsSampling && opts.temperature !== undefined) {
+    body.temperature = opts.temperature;
+  }
+
+  // Thinking configurável no /admin: adaptive (effort) OU extended (budget_tokens).
+  const thinking = opts.params?.thinking;
+  if (thinking?.enabled) {
+    if (typeof thinking.budget_tokens === 'number' && thinking.budget_tokens > 0) {
+      // Extended thinking (Haiku 4.5, Sonnet 4.5): teto fixo de tokens de raciocínio.
+      body.thinking = { type: 'enabled', budget_tokens: thinking.budget_tokens };
+      // max_tokens precisa ser > budget_tokens, senão a API rejeita.
+      if ((body.max_tokens as number) <= thinking.budget_tokens) {
+        body.max_tokens = thinking.budget_tokens + 1024;
+      }
+      // Extended thinking exige temperature=1 (a menos que o modelo rejeite sampling).
+      if (rejectsSampling) delete body.temperature;
+      else body.temperature = 1;
+    } else if (thinking.effort) {
+      // Adaptive thinking (Sonnet 4.6+, Opus 4.6+): modelo decide quanto pensar.
+      body.thinking = { type: 'adaptive' };
+      body.output_config = { effort: thinking.effort };
+      delete body.temperature; // adaptive não combina com sampling custom
+    }
+  }
 
   const res = await fetch(`${route.provider.baseUrl}/messages`, {
     method: 'POST',

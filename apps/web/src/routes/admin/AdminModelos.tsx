@@ -18,6 +18,8 @@ import {
   type CatalogModel,
   type ProviderId,
 } from '../../config/models';
+import { getModelCaps } from '../../config/modelCapabilities';
+import { ModelParamsEditor } from '../../components/admin/ModelParamsEditor';
 
 const STAGE_LABEL: Record<string, string> = {
   model_classify:         'Classificação',
@@ -28,6 +30,23 @@ const STAGE_LABEL: Record<string, string> = {
   model_vision:           'Visão (OCR)',
 };
 
+// Descrição didática do que cada requisição ao LLM faz no pipeline — inclui
+// quando roda e uma dica de custo, pra orientar a escolha do modelo.
+const STAGE_DESCRIPTION: Record<string, string> = {
+  model_classify:
+    'Lê o início do documento e detecta matéria, tipo (prova, lista, resumo…) e data. Roda 1× por upload com pouco texto — um modelo barato e rápido dá conta.',
+  model_synthesize:
+    'Gera o resumo principal a partir do conteúdo completo. É a etapa mais pesada e a que mais define a qualidade final — vale um modelo mais capaz.',
+  model_compress_compact:
+    'Condensa a síntese numa cola curta (modo compacta), priorizando só o essencial para revisão rápida na véspera da prova.',
+  model_compress_cola:
+    'Condensa a síntese numa cola mais completa (modo cola), preservando fórmulas, definições e exemplos.',
+  model_judge:
+    'Avalia automaticamente a síntese gerada (atribui nota + comentário). Trabalha com texto curto — um modelo barato resolve.',
+  model_vision:
+    'Extrai texto de imagens e PDFs escaneados (foto do quadro, slide em imagem). Só é acionado quando o arquivo não tem texto selecionável.',
+};
+
 const CUSTOM_VALUE = '__custom__';
 
 interface RowProps {
@@ -35,11 +54,13 @@ interface RowProps {
   current: string;
   description: string | null;
   updatedAt: string;
+  /** Params avançados salvos pra este estágio (effort/verbosity/thinking). */
+  currentParams: Record<string, unknown>;
   /** Disponibilidade por provider (null = desconhecido, ex: endpoint não deployado) */
   providers: Record<ProviderId, boolean> | null;
 }
 
-function ModelRow({ settingKey, current, description, updatedAt, providers }: RowProps) {
+function ModelRow({ settingKey, current, description, updatedAt, currentParams, providers }: RowProps) {
   const isVisionStage = settingKey === 'model_vision';
   const setSetting = useSetAppSetting();
   const toast = useToast();
@@ -56,10 +77,20 @@ function ModelRow({ settingKey, current, description, updatedAt, providers }: Ro
     return out;
   }, [catalog]);
 
-  const inCatalog = !!getCatalogModel(current);
   const [value, setValue] = useState(current);
   // Modo custom: campo de texto livre (qualquer ID OpenRouter/provider).
   const [custom, setCustom] = useState(false);
+  // Painel de params avançados (effort/verbosity/thinking) expandido.
+  const [expanded, setExpanded] = useState(false);
+  const [paramsSaving, setParamsSaving] = useState(false);
+  // O <select> é controlado pelo `value` local — quando o valor selecionado não
+  // está no catálogo (legado/custom), renderizamos uma opção "(atual)" pra que o
+  // value controlado sempre case com uma <option> (senão a seleção "trava").
+  const valueInCatalog = !!getCatalogModel(value);
+
+  // Params avançados são baseados no modelo SALVO (o que de fato roda). Só há
+  // toggle quando o modelo configurado expõe algum param (ver getModelCaps).
+  const hasAdvanced = getModelCaps(current).family !== null;
 
   const dirty = value !== current;
   const selectedProvider = providerOf(value);
@@ -88,16 +119,26 @@ function ModelRow({ settingKey, current, description, updatedAt, providers }: Ro
     }
   };
 
+  const handleSaveParams = async (params: Record<string, unknown>) => {
+    setParamsSaving(true);
+    try {
+      await setSetting.mutateAsync({ key: `${settingKey}_params`, value: params });
+      toast.success('Params atualizados', `${stageLabel}.`);
+    } catch (err) {
+      toast.error('Não foi possível salvar', (err as Error).message);
+    } finally {
+      setParamsSaving(false);
+    }
+  };
+
   return (
+    <div className="admin-model-row-wrap">
     <div className="admin-model-row">
       <div>
         <strong>{stageLabel}</strong>
-        <p>
-          <code>{settingKey}</code>
-          {description && <span> — {description}</span>}
-        </p>
-        <small className="hint" style={{ fontSize: '0.72rem' }}>
-          Atualizado {new Date(updatedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+        <p className="admin-model-desc">{STAGE_DESCRIPTION[settingKey] ?? description}</p>
+        <small className="hint admin-model-meta">
+          <code>{settingKey}</code> · atualizado {new Date(updatedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
         </small>
       </div>
 
@@ -114,13 +155,13 @@ function ModelRow({ settingKey, current, description, updatedAt, providers }: Ro
           />
         ) : (
           <select
-            value={inCatalog ? value : current}
+            value={value}
             onChange={(e) => handleSelect(e.target.value)}
             aria-label={`Modelo para ${stageLabel}`}
           >
-            {/* Valor atual fora do catálogo (legado/custom) — sempre visível */}
-            {!inCatalog && current && (
-              <option value={current}>{current} (atual)</option>
+            {/* Valor selecionado fora do catálogo (legado/custom) — sempre visível */}
+            {!valueInCatalog && value && (
+              <option value={value}>{value} (atual)</option>
             )}
             {PROVIDERS_META.map((meta) => {
               const models = groups[meta.id];
@@ -162,6 +203,17 @@ function ModelRow({ settingKey, current, description, updatedAt, providers }: Ro
       </div>
 
       <div className="admin-model-row-actions">
+        {hasAdvanced && (
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            title="Parâmetros avançados (effort, thinking, verbosity)"
+          >
+            Avançado {expanded ? '▲' : '▾'}
+          </button>
+        )}
         <button
           type="button"
           className="ghost"
@@ -179,6 +231,18 @@ function ModelRow({ settingKey, current, description, updatedAt, providers }: Ro
           {setSetting.isPending ? 'Salvando…' : 'Salvar'}
         </button>
       </div>
+    </div>
+
+    {expanded && hasAdvanced && (
+      <div className="admin-model-advanced">
+        <ModelParamsEditor
+          modelId={current}
+          currentParams={currentParams}
+          onSave={handleSaveParams}
+          saving={paramsSaving}
+        />
+      </div>
+    )}
     </div>
   );
 }
@@ -229,16 +293,27 @@ export default function AdminModelos() {
       </section>
 
       <section style={{ marginTop: '1rem' }}>
-        {(settings ?? []).map((s) => (
-          <ModelRow
-            key={s.key}
-            settingKey={s.key}
-            current={typeof s.value === 'string' ? s.value : JSON.stringify(s.value)}
-            description={s.description}
-            updatedAt={s.updated_at}
-            providers={providers}
-          />
-        ))}
+        {(settings ?? [])
+          // Só as 6 chaves de estágio — as `*_params` são lidas à parte, não viram linha.
+          .filter((s) => STAGE_LABEL[s.key])
+          .map((s) => {
+            const paramsRow = settings?.find((p) => p.key === `${s.key}_params`);
+            const currentParams =
+              paramsRow?.value && typeof paramsRow.value === 'object'
+                ? (paramsRow.value as Record<string, unknown>)
+                : {};
+            return (
+              <ModelRow
+                key={s.key}
+                settingKey={s.key}
+                current={typeof s.value === 'string' ? s.value : JSON.stringify(s.value)}
+                description={s.description}
+                updatedAt={s.updated_at}
+                currentParams={currentParams}
+                providers={providers}
+              />
+            );
+          })}
       </section>
     </>
   );

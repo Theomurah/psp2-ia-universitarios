@@ -24,7 +24,7 @@ import {
   SANDBOX_INSTRUCTION,
 } from './prompts.ts';
 import { ClassificationSchema } from '../../../packages/shared/src/schemas.ts';
-import { getModelConfig } from './models.ts';
+import { getModelConfig, getModelParams } from './models.ts';
 import { chunkDocument, shouldChunk, MAX_DEPTH, CHUNK_THRESHOLD } from './chunking.ts';
 import type {
   ClassificationResult,
@@ -100,6 +100,7 @@ export async function classify(
     temperature: 0,
     max_tokens: 512,
     response_format: { type: 'json_object' },
+    params: (await getModelParams()).classify,
   }, 3, onRetry);
   const duration_ms = Date.now() - t0;
 
@@ -162,6 +163,7 @@ export async function synthesize(
     ],
     temperature: 0.2,
     max_tokens: 8192,
+    params: (await getModelParams()).synthesize,
   }, onRetry);
   const duration_ms = Date.now() - t0;
 
@@ -207,7 +209,9 @@ export async function compress(
 ): Promise<{ result: CompressionResult; usage: { tokens_input: number; tokens_output: number; cost_usd: number; model: string; duration_ms: number }; truncated: boolean }> {
   const system = renderPrompt(SYSTEM_PROMPT_COMPRESS, { modo: input.modo });
   const mc = await getModelConfig();
+  const mp = await getModelParams();
   const model = input.modo === 'compacta' ? mc.compress_compact : mc.compress_cola;
+  const params = input.modo === 'compacta' ? mp.compress_compact : mp.compress_cola;
   const formulas_input = countFormulas(input.markdown_sintetizado);
 
   const t0 = Date.now();
@@ -219,6 +223,7 @@ export async function compress(
     ],
     temperature: 0.1,
     max_tokens: 8192,
+    params,
   }, onRetry);
   const duration_ms = Date.now() - t0;
 

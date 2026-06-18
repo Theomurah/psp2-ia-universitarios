@@ -2267,6 +2267,21 @@ form.settings label {
   margin: 0.3rem 0 0;
   font-size: 0.82rem; color: var(--text-muted);
 }
+/* Descrição didática do estágio — texto principal, legível */
+.admin-model-row p.admin-model-desc {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+/* Linha de metadados (settingKey + atualizado) — discreta */
+.admin-model-meta { display: block; font-size: 0.72rem; }
+.admin-model-meta code {
+  font-size: 0.72rem;
+  padding: 0.05rem 0.3rem;
+  background: var(--bg-muted);
+  color: var(--text-muted);
+}
 .admin-model-row input {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, monospace;
   font-size: 0.9rem;
@@ -2294,6 +2309,38 @@ form.settings label {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+/* Wrapper row + painel de params avançados */
+.admin-model-row-wrap + .admin-model-row-wrap { margin-top: 0.5rem; }
+.admin-model-advanced {
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  margin-top: 0.4rem;
+}
+.model-params-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 460px;
+}
+.model-params-editor .field { gap: 0.3rem; }
+.model-params-editor .field small.hint { margin-top: 0.15rem; }
+.model-params-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.model-params-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
 }
 
 @media (max-width: 720px) {
@@ -2896,4 +2943,211 @@ form.settings label {
   overflow: hidden;
 }
 .system-prompt-text.expanded { max-height: none; }
+
+/* =============================================================
+   Flashcards (seção Anki-like) — Fase 2
+   Todas as cores via tokens UnB; reaproveita .card/.metric-card/.field/.badge.
+   ============================================================= */
+
+/* Ações à direita no header (a .dashboard-header já é space-between). */
+.dashboard-header-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Grid de baralhos na home. */
+.deck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.deck-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  transition: box-shadow 0.15s;
+}
+.deck-card:hover { box-shadow: var(--shadow); }
+.deck-card-body h2 { font-size: 1.05rem; margin: 0 0 0.35rem; }
+.deck-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  flex-wrap: wrap;
+}
+.deck-card-actions { display: flex; justify-content: flex-end; }
+
+/* Tela de estudo. */
+.study-config .field { margin-bottom: 1rem; }
+.study-config .field input[type='number'] { max-width: 140px; }
+
+.study-progress {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.study-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+  margin: 0.5rem 0 1rem;
+}
+.study-card-face {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  text-align: center;
+}
+.study-card-divider {
+  border: none;
+  border-top: 1px dashed var(--border-strong);
+  margin: 1.25rem 0;
+  width: 100%;
+}
+.study-summary .metrics-cards { margin: 0.5rem 0; }
+
+/* Botões de nota (4, padrão Anki) — cor por nota via tokens. */
+.grade-buttons {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 1rem;
+}
+.grade-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  min-width: 96px;
+  flex: 1 1 96px;
+  max-width: 160px;
+  transition: box-shadow 0.15s, transform 0.05s;
+}
+.grade-btn:hover { box-shadow: var(--shadow-sm); }
+.grade-btn:active { transform: translateY(1px); }
+.grade-btn-label { font-weight: 600; }
+.grade-btn-interval { font-size: 0.78rem; color: var(--text-muted); }
+.grade-again { border-color: var(--error); color: var(--error); }
+.grade-hard { border-color: var(--warn); color: var(--warn); }
+.grade-good { border-color: var(--primary); color: var(--primary); }
+.grade-easy { border-color: var(--secondary); color: var(--secondary); }
+
+kbd {
+  font-family: inherit;
+  font-size: 0.72rem;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  color: var(--text-muted);
+}
+
+/* --- Gestão de baralhos/cartões (Fase 3) --- */
+.deck-card-actions { gap: 0.5rem; }
+
+.fc-editor { margin-bottom: 1.5rem; }
+.fc-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.fc-editor-grid textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+}
+.fc-editor-preview {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.8rem;
+  background: var(--bg-muted);
+  min-height: 3rem;
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+.fc-editor-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.fc-card-list {
+  display: grid;
+  gap: 1rem;
+}
+.fc-card-item {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+}
+.fc-card-faces {
+  display: grid;
+  gap: 0.6rem;
+}
+.fc-card-back {
+  border-top: 1px dashed var(--border-strong);
+  padding-top: 0.6rem;
+  color: var(--text-muted);
+}
+.fc-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+.fc-card-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+/* Dropzone de importação (Fase 4) */
+.fc-dropzone {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 3rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  transition: border-color 0.15s, background 0.15s;
+}
+.fc-dropzone:hover,
+.fc-dropzone.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
 

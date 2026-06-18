@@ -98,14 +98,20 @@ export const NOMENCLATURA = {
 } as const;
 
 // =============================================================
-// Modelos LLM (OpenRouter)
+// Modelos LLM — fallback de ÚLTIMA instância
 // =============================================================
+// Cascata de resolução: app_settings (painel /admin) → env MODEL_<STAGE> →
+// estes defaults. Em runtime as Edge Functions quase sempre leem do banco
+// (seedado na 0009/0032); estes valores só entram se o fetch do app_settings
+// falhar. Mantidos em OpenAI (catálogo do /admin) pra funcionar tanto na API
+// nativa quanto no fallback OpenRouter — os antigos defaults anthropic/google
+// só existiam no OpenRouter e quebravam num setup OpenAI-only.
 export const MODELS = {
-  classify: 'anthropic/claude-haiku-4.5',
-  synthesize: 'anthropic/claude-sonnet-4.6',
-  compress_compact: 'anthropic/claude-haiku-4.5',
-  compress_cola: 'anthropic/claude-sonnet-4.6',
-  judge: 'google/gemini-2.0-pro-experimental',
+  classify: 'openai/gpt-4o-mini',
+  synthesize: 'openai/gpt-5-mini',
+  compress_compact: 'openai/gpt-5-mini',
+  compress_cola: 'openai/gpt-5-mini',
+  judge: 'openai/gpt-4o-mini',
 } as const;
 
 // =============================================================

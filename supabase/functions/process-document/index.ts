@@ -31,7 +31,7 @@ import {
   parseJsonBody,
 } from '../_shared/http.ts';
 import { parseDocument } from '../_shared/parsers.ts';
-import { getModelConfig } from '../_shared/models.ts';
+import { getModelConfig, getModelParams } from '../_shared/models.ts';
 import { classify, synthesize, synthesizeChunked, compress } from '../_shared/pipeline.ts';
 import { CHUNK_THRESHOLD } from '../_shared/chunking.ts';
 import {
@@ -329,6 +329,7 @@ async function runPipeline(jobId: string): Promise<void> {
     const modelConfig = await getModelConfig();
     const parseResult = await parseDocument(buffer, doc.format, mimeType, {
       visionModel: modelConfig.vision,
+      visionParams: (await getModelParams()).vision,
     });
     await logEvent('parse', 'success', {
       duration_ms: Date.now() - t0,

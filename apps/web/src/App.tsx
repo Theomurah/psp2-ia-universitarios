@@ -21,6 +21,12 @@ import { useIsAdmin } from './hooks/useIsAdmin';
 const LoginPage = lazy(() => import('./routes/LoginPage'));
 const OnboardingPage = lazy(() => import('./routes/OnboardingPage'));
 const SettingsPage = lazy(() => import('./routes/SettingsPage'));
+// Flashcards é uma seção pesada (KaTeX, futuros charts/parser .apkg) — lazy
+// pra não inflar o chunk inicial. Home + fluxo de estudo separados.
+const FlashcardsPage = lazy(() => import('./routes/FlashcardsPage'));
+const FlashcardStudyPage = lazy(() => import('./routes/FlashcardStudyPage'));
+const FlashcardDeckPage = lazy(() => import('./routes/FlashcardDeckPage'));
+const FlashcardImportPage = lazy(() => import('./routes/FlashcardImportPage'));
 const AdminLayout = lazy(() => import('./routes/admin/AdminLayout'));
 const AdminDashboard = lazy(() => import('./routes/admin/AdminDashboard'));
 const AdminPrompts = lazy(() => import('./routes/admin/AdminPrompts'));
@@ -42,6 +48,7 @@ const STANDALONE_ROUTES = new Set(['/login', '/onboarding', '/privacidade', '/te
 function pageTitle(pathname: string): string {
   if (pathname === '/') return 'Meus documentos';
   if (pathname.startsWith('/materias')) return 'Matérias';
+  if (pathname.startsWith('/flashcards')) return 'Flashcards';
   if (pathname.startsWith('/prompts')) return 'Prompts';
   if (pathname.startsWith('/settings')) return 'Configurações';
   if (pathname.startsWith('/admin/prompts')) return 'Admin — Prompts';
@@ -154,6 +161,7 @@ function Topbar() {
         <div className={`topbar-links${menuOpen ? ' open' : ''}`} id="topbar-nav">
           <NavLink to="/" end className={linkClass}>Dashboard</NavLink>
           <NavLink to="/materias" className={linkClass}>Matérias</NavLink>
+          <NavLink to="/flashcards" className={linkClass}>Flashcards</NavLink>
           <NavLink to="/prompts" className={linkClass}>Prompts</NavLink>
           <NavLink to="/settings" className={linkClass}>Configurações</NavLink>
           {isAdmin && (
@@ -237,6 +245,38 @@ export default function App() {
                   element={
                     <RequireAuth requireOnboarding>
                       <HorariosPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/flashcards"
+                  element={
+                    <RequireAuth requireOnboarding>
+                      <FlashcardsPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/flashcards/study/:deckId"
+                  element={
+                    <RequireAuth requireOnboarding>
+                      <FlashcardStudyPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/flashcards/decks/:deckId"
+                  element={
+                    <RequireAuth requireOnboarding>
+                      <FlashcardDeckPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/flashcards/import"
+                  element={
+                    <RequireAuth requireOnboarding>
+                      <FlashcardImportPage />
                     </RequireAuth>
                   }
                 />

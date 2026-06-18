@@ -17,6 +17,7 @@ vi.mock('../openrouter.ts', async (importOriginal) => {
 
 vi.mock('../models.ts', () => ({
   getModelConfig: vi.fn(),
+  getModelParams: vi.fn(() => Promise.resolve({})),
   resetModelConfig: vi.fn(),
 }));
 

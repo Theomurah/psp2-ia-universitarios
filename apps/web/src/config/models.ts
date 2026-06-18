@@ -51,11 +51,17 @@ export const PROVIDERS_META: ProviderMeta[] = [
  * backend nem migration (o valor escolhido vira app_settings via RPC).
  */
 export const MODEL_CATALOG: CatalogModel[] = [
-  // ---- OpenAI (nativo — OPENAI_API_KEY) ----
-  { id: 'openai/gpt-5-mini',   name: 'GPT-5 mini',   provider: 'openai', tier: 'standard', vision: true, note: 'raciocínio, ótimo custo' },
-  { id: 'openai/gpt-5.4-mini', name: 'GPT-5.4 mini', provider: 'openai', tier: 'standard', vision: true, note: 'geração mais recente' },
+  // ---- OpenAI (nativo — OPENAI_API_KEY) — ordenado do mais barato ao flagship ----
   { id: 'openai/gpt-5-nano',   name: 'GPT-5 nano',   provider: 'openai', tier: 'fast',     vision: true, note: 'mais barato' },
+  { id: 'openai/gpt-4.1-nano', name: 'GPT-4.1 nano', provider: 'openai', tier: 'fast',     vision: true, note: 'barato, sem raciocínio' },
   { id: 'openai/gpt-4o-mini',  name: 'GPT-4o mini',  provider: 'openai', tier: 'fast',     vision: true },
+  { id: 'openai/gpt-5.4-nano', name: 'GPT-5.4 nano', provider: 'openai', tier: 'fast',     vision: true, note: 'raciocínio recente, barato' },
+  { id: 'openai/gpt-5-mini',   name: 'GPT-5 mini',   provider: 'openai', tier: 'standard', vision: true, note: 'raciocínio, ótimo custo' },
+  { id: 'openai/gpt-4.1-mini', name: 'GPT-4.1 mini', provider: 'openai', tier: 'standard', vision: true },
+  { id: 'openai/gpt-5.4-mini', name: 'GPT-5.4 mini', provider: 'openai', tier: 'standard', vision: true, note: 'geração mais recente' },
+  { id: 'openai/gpt-5',        name: 'GPT-5',        provider: 'openai', tier: 'premium',  vision: true, note: 'flagship' },
+  { id: 'openai/gpt-5.1',      name: 'GPT-5.1',      provider: 'openai', tier: 'premium',  vision: true },
+  { id: 'openai/gpt-5.4',      name: 'GPT-5.4',      provider: 'openai', tier: 'premium',  vision: true, note: 'flagship recente' },
   { id: 'openai/gpt-4o',       name: 'GPT-4o',       provider: 'openai', tier: 'standard', vision: true },
 
   // ---- Anthropic (nativo — ANTHROPIC_API_KEY — IDs com traço, não ponto) ----

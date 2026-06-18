@@ -13,7 +13,7 @@
  * Lista completa: https://openrouter.ai/models?modality=image
  */
 
-import { callLLMWithRetry } from '../openrouter.ts';
+import { callLLMWithRetry, type ModelExtraParams } from '../openrouter.ts';
 import {
   VisionProvider,
   VisionExtractionResult,
@@ -26,10 +26,15 @@ export class OpenRouterVisionProvider implements VisionProvider {
   readonly name: string;
   private readonly model: string;
   private readonly detail: 'low' | 'high' | 'auto';
+  private readonly params?: ModelExtraParams;
 
-  constructor(model: string, options: { detail?: 'low' | 'high' | 'auto' } = {}) {
+  constructor(
+    model: string,
+    options: { detail?: 'low' | 'high' | 'auto'; params?: ModelExtraParams } = {},
+  ) {
     this.model = model;
     this.detail = options.detail ?? 'high';
+    this.params = options.params;
     // Nome legível derivado do modelo (ex: "openai/gpt-4o" → "gpt-4o")
     this.name = model.split('/').pop() ?? model;
   }
@@ -55,6 +60,7 @@ export class OpenRouterVisionProvider implements VisionProvider {
         ],
         temperature: 0,
         max_tokens: 4096,
+        params: this.params,
       });
 
       const duration_ms = Date.now() - t0;
