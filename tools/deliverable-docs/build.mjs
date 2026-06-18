@@ -32,7 +32,7 @@ import {
 } from 'docx';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFS_DIR = path.join(__dirname, 'definitions');
@@ -377,7 +377,17 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Exporta o builder para reuso por outros runners (ex: sprints345/build.mjs),
+// preservando o mesmo formato dos docs de entrega.
+export { buildDoc };
+
+// Só roda o main quando este arquivo é o entrypoint (node build.mjs).
+// Importá-lo de outro módulo não dispara a geração dos 9 docs antigos.
+const isEntrypoint =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isEntrypoint) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

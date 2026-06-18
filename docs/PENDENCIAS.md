@@ -2,6 +2,36 @@
 
 Lista viva do que ainda precisa ser feito pra fechar cada Sprint. Atualizada sempre que algo é entregue ou descoberto.
 
+> ⚠️ **Reformulação de backlog (18/06/2026).** As antigas **Sprint 3** (Integração/Testes
+> + Testes com Usuários) e **Sprint 4** (Feedback + Artigo + Apresentação) foram
+> **substituídas** por **Sprint 3 — Hardening**, **Sprint 4 — Artigo** e
+> **Sprint 5 — Jornada do cliente** (deadline 25/06 mantido). Detalhes em
+> `Entregas/Sprint 0/Backlog-Reformulado-PROPOSTA.md`. As seções "🔵 Sprint 3" e
+> "🟣 Sprint 4" mais abaixo descrevem a **estrutura ANTIGA** — o que delas continua
+> pendente está consolidado na seção **"🔁 Pendências após a reformulação"** (logo
+> abaixo). Testes com usuários reais (antigos H9/H10) saíram do backlog → trabalho
+> extra/futuro.
+
+---
+
+## 🔁 Pendências após a reformulação (18/06/2026)
+
+Estado real frente às novas sprints. A maior parte de Sprint 3 (Hardening) e
+Sprint 5 (Jornada do cliente) já foi **entregue em código** (ver backlog/commits);
+o que resta é avaliação, deploy e documentação.
+
+| Item | Vínculo | Situação |
+|---|---|---|
+| Docs de tarefa S3T35–S5T69 | Sprints 3/4/5 | ✅ gerados (`Entregas/Sprint 3|4|5/...`) |
+| Backlog + Cronograma `.xlsx` | Sprint 0 | ✅ regenerados |
+| Artigo — trocar "quatro sprints" → "cinco sprints" | Artigo (Seção 1/3/6) | ⏳ pendente (3 ocorrências) |
+| `Relatorio Final do Projeto.docx` → 5 sprints | Relatório geral | ⏳ pendente (sumário 4.5/4.6 + "quatro sprints") |
+| `Relatorio Final - Sprint 3|4|5.docx` | Relatórios de sprint | ⏳ criar (antigos 3/4 removidos) |
+| Teste do pipeline com ≥ 50 docs reais | trabalho futuro | ⏸️ bloqueado por deploy/secrets |
+| Teste do fluxo Drive com conta real | trabalho futuro | ⏸️ bloqueado por config GCP |
+| Avaliação com usuários (SUS/TAM) | trabalho futuro | ⏸️ não executada (sem deploy) |
+| Deploy de produção (Supabase/OpenRouter/GCP/Vercel) | trabalho futuro | ⏸️ pendente |
+
 ---
 
 ## 📄 Artigo ENEGEP 2026 — Status
@@ -253,7 +283,7 @@ Sem pendências de código.
 
 ---
 
-## 🔵 Sprint 3 — Pendências (toda a sprint)
+## 🔵 Sprint 3 — Pendências (toda a sprint) — ⚠️ ESTRUTURA ANTIGA (ver §Reformulação)
 
 ### H8 — Integração end-to-end (4 tarefas)
 - **T35** — Conectar frontend ao backend (já parcialmente feito — falta polimento)
@@ -283,7 +313,7 @@ Sem pendências de código.
 
 ---
 
-## 🟣 Sprint 4 — Pendências (toda a sprint)
+## 🟣 Sprint 4 — Pendências (toda a sprint) — ⚠️ ESTRUTURA ANTIGA (ver §Reformulação)
 
 ### H10 — Consolidação de feedbacks (3 tarefas)
 - **T43** — Tabular dados dos formulários
