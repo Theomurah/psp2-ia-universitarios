@@ -11,7 +11,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { handleCorsPrefligh } from '../_shared/cors.ts';
+import { handleCorsPreflight } from '../_shared/cors.ts';
 import { createAuthClient, createServiceClient } from '../_shared/supabase-client.ts';
 import { jsonResponse, errorResponse } from '../_shared/http.ts';
 import { createLogger } from '../_shared/log.ts';
@@ -35,7 +35,7 @@ function hasKey(envs: string[]): boolean {
 }
 
 serve(async (req) => {
-  const cors = handleCorsPrefligh(req);
+  const cors = handleCorsPreflight(req);
   if (cors) return cors;
 
   try {
