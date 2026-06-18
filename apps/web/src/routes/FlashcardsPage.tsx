@@ -72,9 +72,9 @@ export default function FlashcardsPage() {
           <Link to="/flashcards/import" className="ghost" style={{ textDecoration: 'none' }}>
             Importar
           </Link>
-          <button type="button" className="ghost" disabled title="Em breve">
-            Análises <span className="badge tone-info">Em breve</span>
-          </button>
+          <Link to="/flashcards/analytics" className="ghost" style={{ textDecoration: 'none' }}>
+            Análises
+          </Link>
         </div>
       </header>
 

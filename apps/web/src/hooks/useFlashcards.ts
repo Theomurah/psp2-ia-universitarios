@@ -425,3 +425,113 @@ export function useImportDeck() {
     onError: (err) => log.error('import_deck_failed', log.fromError(err)),
   });
 }
+
+// =============================================================
+// Análises (Fase 5) — agrega flashcard_reviews por tópico e por cartão
+// =============================================================
+
+export interface TopicAccuracy {
+  topico: string;
+  total: number;
+  correct: number;
+  accuracy: number; // 0-100
+}
+export interface CardAccuracy {
+  cardId: string;
+  front: string;
+  total: number;
+  correct: number;
+  accuracy: number;
+}
+export interface FlashcardAnalytics {
+  totalReviews: number;
+  correct: number;
+  accuracy: number;
+  cardsStudied: number;
+  topicsCount: number;
+  ratingCounts: Record<Rating, number>;
+  byTopic: TopicAccuracy[];
+  byCard: CardAccuracy[];
+}
+
+const ANALYTICS_LIMIT = 5000;
+
+/**
+ * Carrega as últimas N revisões e agrega: distribuição de notas, acerto por
+ * tópico e por cartão. Client-side é suficiente no volume de um aluno; se crescer,
+ * migrar pra RPC SECURITY INVOKER (mesmo padrão dos admin_*).
+ */
+export function useFlashcardAnalytics() {
+  return useQuery({
+    queryKey: ['flashcards', 'analytics'],
+    queryFn: async (): Promise<FlashcardAnalytics> => {
+      const { data, error } = await supabase
+        .from('flashcard_reviews')
+        .select('rating, is_correct, topico, card_id, flashcards(front)')
+        .order('reviewed_at', { ascending: false })
+        .limit(ANALYTICS_LIMIT);
+      if (error) throw error;
+
+      type Row = {
+        rating: Rating;
+        is_correct: boolean;
+        topico: string | null;
+        card_id: string;
+        flashcards: { front: string } | { front: string }[] | null;
+      };
+      const rows = (data ?? []) as Row[];
+
+      const ratingCounts: Record<Rating, number> = { again: 0, hard: 0, good: 0, easy: 0 };
+      const topicMap = new Map<string, { total: number; correct: number }>();
+      const cardMap = new Map<string, { total: number; correct: number; front: string }>();
+      let correct = 0;
+
+      for (const r of rows) {
+        ratingCounts[r.rating] = (ratingCounts[r.rating] ?? 0) + 1;
+        if (r.is_correct) correct++;
+
+        const topic = r.topico ?? 'Sem tópico';
+        const tm = topicMap.get(topic) ?? { total: 0, correct: 0 };
+        tm.total++;
+        if (r.is_correct) tm.correct++;
+        topicMap.set(topic, tm);
+
+        const front = Array.isArray(r.flashcards) ? (r.flashcards[0]?.front ?? '') : (r.flashcards?.front ?? '');
+        const cm = cardMap.get(r.card_id) ?? { total: 0, correct: 0, front };
+        cm.total++;
+        if (r.is_correct) cm.correct++;
+        if (!cm.front && front) cm.front = front;
+        cardMap.set(r.card_id, cm);
+      }
+
+      const total = rows.length;
+      const pct = (c: number, t: number) => (t ? Math.round((c / t) * 100) : 0);
+
+      const byTopic = Array.from(topicMap, ([topico, v]) => ({
+        topico,
+        total: v.total,
+        correct: v.correct,
+        accuracy: pct(v.correct, v.total),
+      })).sort((a, b) => b.total - a.total);
+
+      const byCard = Array.from(cardMap, ([cardId, v]) => ({
+        cardId,
+        front: v.front,
+        total: v.total,
+        correct: v.correct,
+        accuracy: pct(v.correct, v.total),
+      })).sort((a, b) => a.accuracy - b.accuracy || b.total - a.total);
+
+      return {
+        totalReviews: total,
+        correct,
+        accuracy: pct(correct, total),
+        cardsStudied: cardMap.size,
+        topicsCount: topicMap.size,
+        ratingCounts,
+        byTopic,
+        byCard,
+      };
+    },
+  });
+}
