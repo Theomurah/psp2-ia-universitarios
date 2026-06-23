@@ -8,7 +8,7 @@
 
 export default {
   output:
-    'Entregas/Sprint 2/Desenvolvimento Backend/H5 - Implementar pipeline de síntese via LLM/PSP2 - S2T24 - Chunking para Documentos Grandes - IMPLEMENTADO.docx',
+    'Entregas/Teams/Tarefas/Sprint 2/Desenvolvimento Backend/H5 - Implementar pipeline de síntese via LLM/PSP2 - S2T24 - Chunking para Documentos Grandes - IMPLEMENTADO.docx',
 
   title: 'PSP2 — Entrega Sprint 2 / Tarefa 24',
   subtitle: 'Lógica de Chunking para Documentos Grandes — IMPLEMENTADA',
@@ -28,7 +28,7 @@ export default {
     ['Planning Poker', '8'],
     ['Data de início', '20/04/2026'],
     ['Data de entrega', '26/05/2026'],
-    ['Status', 'Concluída'],
+    ['Status', 'Concluído'],
     ['Branch', 'feature/sprint1-finalization'],
     ['Commit', '(será preenchido após push)'],
   ],

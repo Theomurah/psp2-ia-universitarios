@@ -4,7 +4,7 @@
 
 export default {
   output:
-    'Entregas/Sprint 1/Desenvolvimento Backend/H3 - Desenvolver API de upload multi-formato/PSP2 - S1T15 - Testes Unitarios.docx',
+    'Entregas/Teams/Tarefas/Sprint 1/Desenvolvimento Backend/H3 - Desenvolver API de upload multi-formato/PSP2 - S1T15 - Testes Unitarios.docx',
 
   title: 'PSP2 — Entrega Sprint 1 / Tarefa 15',
   subtitle: 'Testes Unitários por Formato — IMPLEMENTADA',
@@ -24,7 +24,7 @@ export default {
     ['Planning Poker', '3'],
     ['Data de início', '14/05/2026'],
     ['Data de entrega', '26/05/2026'],
-    ['Status', 'Concluída'],
+    ['Status', 'Concluído'],
     ['Branch', 'feature/sprint1-finalization'],
     ['Commit', '(será preenchido após push)'],
   ],

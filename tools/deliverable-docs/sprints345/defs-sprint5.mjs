@@ -39,7 +39,7 @@ function id(n, epico, historia, tarefa, resp, poker, status, commits) {
 export default [
   // ===================== ÉPICO: Aquisição e Onboarding (H21) =====================
   {
-    output: `Entregas/Sprint 5/${EP_AQUI}/${H21}/PSP2 - S5T59 - Login Cadastro e Identidade Visual UnB.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_AQUI}/${H21}/PSP2 - S5T59 - Login Cadastro e Identidade Visual UnB.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 59',
     subtitle: 'Login/cadastro com magic link, força de senha e identidade visual UnB',
     emPalavrasSimples: [
@@ -86,7 +86,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 5/${EP_AQUI}/${H21}/PSP2 - S5T60 - Consentimento LGPD e Paginas Legais.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_AQUI}/${H21}/PSP2 - S5T60 - Consentimento LGPD e Paginas Legais.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 60',
     subtitle: 'Consentimento no cadastro, Política de Privacidade, Termos de Uso e página 404',
     emPalavrasSimples: [
@@ -134,7 +134,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 5/${EP_AQUI}/${H21}/PSP2 - S5T61 - Onboarding Guiado em 4 Passos.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_AQUI}/${H21}/PSP2 - S5T61 - Onboarding Guiado em 4 Passos.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 61',
     subtitle: 'Onboarding obrigatório pós-cadastro: curso, semestre, matérias e horários',
     emPalavrasSimples: [
@@ -188,7 +188,7 @@ export default [
 
   // ===================== ÉPICO: Perfil Acadêmico (H22) =====================
   {
-    output: `Entregas/Sprint 5/${EP_PERFIL}/${H22}/PSP2 - S5T62 - Pagina de Materias e Import SIGAA.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_PERFIL}/${H22}/PSP2 - S5T62 - Pagina de Materias e Import SIGAA.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 62',
     subtitle: 'Grade visual de horários e importação do atestado de matrícula do SIGAA',
     emPalavrasSimples: [
@@ -233,7 +233,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 5/${EP_PERFIL}/${H22}/PSP2 - S5T63 - Conexao do Google Drive.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_PERFIL}/${H22}/PSP2 - S5T63 - Conexao do Google Drive.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 63',
     subtitle: 'Conectar o Google Drive nas configurações (OAuth + estados)',
     emPalavrasSimples: [
@@ -274,7 +274,7 @@ export default [
 
   // ===================== ÉPICO: Núcleo de Uso Diário (H23) =====================
   {
-    output: `Entregas/Sprint 5/${EP_USO}/${H23}/PSP2 - S5T64 - Dashboard com Metricas Filtros e Realtime.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_USO}/${H23}/PSP2 - S5T64 - Dashboard com Metricas Filtros e Realtime.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 64',
     subtitle: 'Dashboard com métricas pessoais, filtros e atualização em tempo real',
     emPalavrasSimples: [
@@ -321,7 +321,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 5/${EP_USO}/${H23}/PSP2 - S5T65 - Gestao de Documentos e Preview da Sintese.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_USO}/${H23}/PSP2 - S5T65 - Gestao de Documentos e Preview da Sintese.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 65',
     subtitle: 'Arquivar/excluir documentos e preview da síntese em markdown renderizado',
     emPalavrasSimples: [
@@ -370,7 +370,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 5/${EP_USO}/${H23}/PSP2 - S5T66 - Pagina de Atividade e Transparencia Operacional.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_USO}/${H23}/PSP2 - S5T66 - Pagina de Atividade e Transparencia Operacional.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 66',
     subtitle: 'Página /atividade com eventos por etapa do pipeline',
     emPalavrasSimples: [
@@ -411,7 +411,7 @@ export default [
 
   // ===================== ÉPICO: Personalização e Voz do Cliente (H24) =====================
   {
-    output: `Entregas/Sprint 5/${EP_VOZ}/${H24}/PSP2 - S5T67 - Biblioteca de Prompts e System Prompt Personalizado.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_VOZ}/${H24}/PSP2 - S5T67 - Biblioteca de Prompts e System Prompt Personalizado.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 67',
     subtitle: 'Biblioteca de prompts copiáveis e system prompt personalizado na síntese',
     emPalavrasSimples: [
@@ -419,7 +419,7 @@ export default [
       'A biblioteca (/prompts) lista os prompts oficiais + os próprios do aluno (via RLS), com busca, filtro por categoria, preenchimento de placeholders e cópia com 1 clique (que incrementa o contador de uso). O system prompt personalizado é (re)gerado em /settings via Edge Function (sem LLM, determinístico) e é injetado no system message da síntese — opt-in, no-op quando não há prompt ativo.',
       'Por que isso importa? É o diferencial central do produto: gerar uma saída portátil (system prompt + prompts) que o aluno usa em qualquer LLM, em vez de ficar preso a uma plataforma. Sustenta a retenção e a proposta de valor do artigo.',
     ],
-    identificacao: id(67, EP_VOZ, H24, 'Biblioteca de prompts + system prompt personalizado na síntese', 'Guilherme / Pedro', 5, 'Concluído', 'cb99fc4, ab438c8'),
+    identificacao: id(67, EP_VOZ, H24, 'Biblioteca de prompts + system prompt personalizado na síntese', 'Guilherme', 5, 'Concluído', 'cb99fc4, ab438c8'),
     objetivo:
       'Entregar a biblioteca de prompts copiáveis (oficiais + do aluno) e o system prompt personalizado, gerado deterministicamente e injetado na síntese, materializando a saída portátil do produto.',
     criterio:
@@ -458,7 +458,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 5/${EP_VOZ}/${H24}/PSP2 - S5T68 - Feedback do Aluno e Painel Admin.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_VOZ}/${H24}/PSP2 - S5T68 - Feedback do Aluno e Painel Admin.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 68',
     subtitle: 'Widget de feedback no preview e painel agregado em /admin/feedback',
     emPalavrasSimples: [
@@ -504,7 +504,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 5/${EP_VOZ}/${H24}/PSP2 - S5T69 - Privacidade Self-service e Filtro de Dados de Teste.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 5/${EP_VOZ}/${H24}/PSP2 - S5T69 - Privacidade Self-service e Filtro de Dados de Teste.docx`,
     title: 'PSP2 — Entrega Sprint 5 / Tarefa 69',
     subtitle: 'Exportar/excluir dados (Art. 18 LGPD) e filtro de dados de teste no /admin',
     emPalavrasSimples: [

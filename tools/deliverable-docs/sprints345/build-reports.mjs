@@ -191,7 +191,7 @@ function buildReport(def) {
 const reports = [
   {
     titulo: 'Sprint 3', periodo: '26/05/2026 a 04/06/2026',
-    output: 'Entregas/Sprint 3/Relatorio Final - Sprint 3.docx',
+    output: 'Entregas/Teams/Relatorios/Relatorio Final - Sprint 3.docx',
     introducao: [
       'Este relatório apresenta os resultados da Sprint 3 do projeto PSP2 — IA para Universitários, desenvolvido no âmbito da disciplina Projeto de Sistemas de Produção 2 (PSP2) do curso de Engenharia de Produção da Universidade de Brasília (UnB), no semestre letivo de 2026.1.',
       'A Sprint 3 foi dedicada ao hardening completo do sistema: levar o produto da condição de "funciona no caminho feliz" para "seguro, observável, acessível e operável sob carga real". O escopo derivou diretamente de quatro rodadas de auditoria do código (26, 27 e 28 de maio e 10 de junho de 2026), que somaram cerca de 200 achados em múltiplas frentes — incluindo um achado crítico de escalada de privilégio.',
@@ -237,7 +237,7 @@ const reports = [
   },
   {
     titulo: 'Sprint 4', periodo: '05/06/2026 a 14/06/2026',
-    output: 'Entregas/Sprint 4/Relatorio Final - Sprint 4.docx',
+    output: 'Entregas/Teams/Relatorios/Relatorio Final - Sprint 4.docx',
     introducao: [
       'Este relatório apresenta os resultados da Sprint 4 do projeto PSP2 — IA para Universitários, no âmbito da disciplina PSP2 do curso de Engenharia de Produção da UnB, semestre 2026.1.',
       'A Sprint 4 foi dedicada à elaboração e finalização do artigo científico a ser submetido ao ENEGEP 2026, em conformidade com a norma ABNT NBR 14724:2024 e o template do evento. O corpo do artigo foi redigido em seis seções e complementado por capa, resumo, palavras-chave e referências.',
@@ -274,7 +274,7 @@ const reports = [
   },
   {
     titulo: 'Sprint 5', periodo: '15/06/2026 a 25/06/2026',
-    output: 'Entregas/Sprint 5/Relatorio Final - Sprint 5.docx',
+    output: 'Entregas/Teams/Relatorios/Relatorio Final - Sprint 5.docx',
     introducao: [
       'Este relatório apresenta os resultados da Sprint 5 do projeto PSP2 — IA para Universitários, no âmbito da disciplina PSP2 do curso de Engenharia de Produção da UnB, semestre 2026.1.',
       'A Sprint 5 foi dedicada à jornada do cliente: a experiência completa do aluno, da aquisição ao hábito de uso, com a identidade visual da UnB e a base legal de LGPD. O objetivo foi consolidar e refinar o caminho que o estudante percorre — cadastro, onboarding, configuração do semestre, uso diário, personalização e voz do cliente.',

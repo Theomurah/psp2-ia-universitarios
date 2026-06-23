@@ -40,7 +40,7 @@ function id(n, epico, historia, tarefa, resp, poker, status, commits) {
 export default [
   // ===================== ÉPICO: Segurança de Acesso e Dados (H13) =====================
   {
-    output: `Entregas/Sprint 3/${EPICO_SEG}/${H13}/PSP2 - S3T35 - Anti-escalada de Privilegio e Blindagem de Colunas.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_SEG}/${H13}/PSP2 - S3T35 - Anti-escalada de Privilegio e Blindagem de Colunas.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 35',
     subtitle: 'Trigger anti-escalada de admin e blindagem de colunas sensíveis',
     emPalavrasSimples: [
@@ -91,7 +91,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_SEG}/${H13}/PSP2 - S3T36 - Hardening de RLS e Storage e Reducao de service_role.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_SEG}/${H13}/PSP2 - S3T36 - Hardening de RLS e Storage e Reducao de service_role.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 36',
     subtitle: 'RLS por operação, policies de Storage e uso mínimo de service_role',
     emPalavrasSimples: [
@@ -143,7 +143,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_SEG}/${H13}/PSP2 - S3T37 - Auditoria Admin Server-side e Requeue Auditavel.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_SEG}/${H13}/PSP2 - S3T37 - Auditoria Admin Server-side e Requeue Auditavel.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 37',
     subtitle: 'Trilha de auditoria admin anti-forja, requeue de jobs e demote de admins falsos',
     emPalavrasSimples: [
@@ -191,7 +191,7 @@ export default [
 
   // ===================== ÉPICO: Defesa do Pipeline LLM (H14) =====================
   {
-    output: `Entregas/Sprint 3/${EPICO_LLM}/${H14}/PSP2 - S3T38 - Sandbox Anti Prompt-Injection.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_LLM}/${H14}/PSP2 - S3T38 - Sandbox Anti Prompt-Injection.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 38',
     subtitle: 'Sandbox <<DOC>> do conteúdo do aluno em todas as etapas LLM',
     emPalavrasSimples: [
@@ -242,7 +242,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_LLM}/${H14}/PSP2 - S3T39 - Guards de Custo e Abuso do Pipeline.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_LLM}/${H14}/PSP2 - S3T39 - Guards de Custo e Abuso do Pipeline.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 39',
     subtitle: 'Tetos de tamanho, whitelist de extensões, guard de payload e cost guard',
     emPalavrasSimples: [
@@ -285,7 +285,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_LLM}/${H14}/PSP2 - S3T40 - Rate Limit Autorizacao e CORS das Edge Functions.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_LLM}/${H14}/PSP2 - S3T40 - Rate Limit Autorizacao e CORS das Edge Functions.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 40',
     subtitle: 'Autorização de process-document, rate limit por usuário, CORS strict e verify_jwt',
     emPalavrasSimples: [
@@ -327,7 +327,7 @@ export default [
 
   // ===================== ÉPICO: Robustez do Pipeline e Banco (H15) =====================
   {
-    output: `Entregas/Sprint 3/${EPICO_ROB}/${H15}/PSP2 - S3T41 - Claim Atomico e Resiliencia de Jobs.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_ROB}/${H15}/PSP2 - S3T41 - Claim Atomico e Resiliencia de Jobs.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 41',
     subtitle: 'Claim atômico, started_at não-regressivo, attempt_count e requeue de failed',
     emPalavrasSimples: [
@@ -372,7 +372,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_ROB}/${H15}/PSP2 - S3T42 - Finish Reason Timeout e Validacao do Pipeline.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_ROB}/${H15}/PSP2 - S3T42 - Finish Reason Timeout e Validacao do Pipeline.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 42',
     subtitle: 'finish_reason, timeout de LLM, validação de compressão e needs_review',
     emPalavrasSimples: [
@@ -419,7 +419,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_ROB}/${H15}/PSP2 - S3T43 - Migrations de Schema Indices e Correcoes SIGAA.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_ROB}/${H15}/PSP2 - S3T43 - Migrations de Schema Indices e Correcoes SIGAA.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 43',
     subtitle: 'Schema cleanup, índices, advisors e correção da grade UNB / parser SIGAA',
     emPalavrasSimples: [
@@ -469,7 +469,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_ROB}/${H15}/PSP2 - S3T44 - Retencao via pg_cron e Roadmap Operacional.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_ROB}/${H15}/PSP2 - S3T44 - Retencao via pg_cron e Roadmap Operacional.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 44',
     subtitle: 'Limpeza de activity_logs via pg_cron e roadmap de jobs agendados',
     emPalavrasSimples: [
@@ -518,7 +518,7 @@ export default [
 
   // ===================== ÉPICO: Observabilidade (H16) =====================
   {
-    output: `Entregas/Sprint 3/${EPICO_OBS}/${H16}/PSP2 - S3T45 - Logger Estruturado com Redacao de PII.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_OBS}/${H16}/PSP2 - S3T45 - Logger Estruturado com Redacao de PII.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 45',
     subtitle: 'Log JSON com redaction de PII no backend e frontend, adotado nas 5 Edge Functions',
     emPalavrasSimples: [
@@ -569,7 +569,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_OBS}/${H16}/PSP2 - S3T46 - Persistencia Duravel de Logs e Request ID.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_OBS}/${H16}/PSP2 - S3T46 - Persistencia Duravel de Logs e Request ID.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 46',
     subtitle: 'Persistência de eventos em activity_logs com request_id de correlação',
     emPalavrasSimples: [
@@ -614,7 +614,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_OBS}/${H16}/PSP2 - S3T47 - ErrorBoundary Telemetria de Retry e Status de Providers.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_OBS}/${H16}/PSP2 - S3T47 - ErrorBoundary Telemetria de Retry e Status de Providers.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 47',
     subtitle: 'ErrorBoundary global, retry em job_events e status de providers no /admin',
     emPalavrasSimples: [
@@ -664,7 +664,7 @@ export default [
 
   // ===================== ÉPICO: Acessibilidade e Responsividade (H17) =====================
   {
-    output: `Entregas/Sprint 3/${EPICO_A11Y}/${H17}/PSP2 - S3T48 - Acessibilidade WCAG 2.1 AA.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_A11Y}/${H17}/PSP2 - S3T48 - Acessibilidade WCAG 2.1 AA.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 48',
     subtitle: 'Foco visível, focus trap, aria-live, títulos por rota e contraste AA',
     emPalavrasSimples: [
@@ -710,7 +710,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_A11Y}/${H17}/PSP2 - S3T49 - UI Responsiva e Tema Claro-Escuro.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_A11Y}/${H17}/PSP2 - S3T49 - UI Responsiva e Tema Claro-Escuro.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 49',
     subtitle: 'Layout responsivo mobile-first e tema claro/escuro com identidade UnB',
     emPalavrasSimples: [
@@ -763,7 +763,7 @@ export default [
 
   // ===================== ÉPICO: Qualidade, CI-CD e Higiene (H18) =====================
   {
-    output: `Entregas/Sprint 3/${EPICO_QA}/${H18}/PSP2 - S3T50 - CI-CD Endurecido e Headers de Seguranca.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_QA}/${H18}/PSP2 - S3T50 - CI-CD Endurecido e Headers de Seguranca.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 50',
     subtitle: 'Coverage, gate de validação no deploy, migrate job, ESLint/Dependabot/CodeQL e CSP no Vercel',
     emPalavrasSimples: [
@@ -813,7 +813,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_QA}/${H18}/PSP2 - S3T51 - Cleanup Tecnico e Export CSV Alinhado ao LGPD.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_QA}/${H18}/PSP2 - S3T51 - Cleanup Tecnico e Export CSV Alinhado ao LGPD.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 51',
     subtitle: 'Remoção de código morto, unificação de utilitários e export CSV seguro',
     emPalavrasSimples: [
@@ -864,7 +864,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 3/${EPICO_QA}/${H18}/PSP2 - S3T52 - Auditorias Completas como Pratica de QA.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 3/${EPICO_QA}/${H18}/PSP2 - S3T52 - Auditorias Completas como Pratica de QA.docx`,
     title: 'PSP2 — Entrega Sprint 3 / Tarefa 52',
     subtitle: 'Quatro rodadas de auditoria multi-frente como prática de garantia de qualidade',
     emPalavrasSimples: [

@@ -4,7 +4,7 @@
 
 export default {
   output:
-    'Entregas/Sprint 2/Integração Google Drive/H6 - Implementar exportação para Google Drive/PSP2 - S2T29 - Upload Automatico Drive.docx',
+    'Entregas/Teams/Tarefas/Sprint 2/Integração Google Drive/H6 - Implementar exportação para Google Drive/PSP2 - S2T29 - Upload Automatico Drive.docx',
 
   title: 'PSP2 — Entrega Sprint 2 / Tarefa 29',
   subtitle: 'Upload Automático dos Documentos no Drive — IMPLEMENTADA',
@@ -24,7 +24,7 @@ export default {
     ['Planning Poker', '3'],
     ['Data de início', '14/05/2026'],
     ['Data de entrega', '26/05/2026'],
-    ['Status', 'Concluída'],
+    ['Status', 'Concluído'],
     ['Branch', 'feature/sprint1-finalization'],
     ['Commit', '(será preenchido após push)'],
   ],

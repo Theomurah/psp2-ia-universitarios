@@ -4,7 +4,7 @@
 
 export default {
   output:
-    'Entregas/Sprint 2/Integração Google Drive/H6 - Implementar exportação para Google Drive/PSP2 - S2T27 - OAuth2 Google Drive.docx',
+    'Entregas/Teams/Tarefas/Sprint 2/Integração Google Drive/H6 - Implementar exportação para Google Drive/PSP2 - S2T27 - OAuth2 Google Drive.docx',
 
   title: 'PSP2 — Entrega Sprint 2 / Tarefa 27',
   subtitle: 'OAuth2 com Google Drive — IMPLEMENTADA (código pronto)',
@@ -20,11 +20,11 @@ export default {
     ['Épico', 'Integração Google Drive'],
     ['História', 'H6 — Implementar exportação para Google Drive'],
     ['Tarefa', 'Configurar OAuth2 com Google Drive API'],
-    ['Responsável', 'Isaac (código) + Theo (config GCP)'],
+    ['Responsável', 'Isaac'],
     ['Planning Poker', '5'],
-    ['Data de início', '14/05/2026'],
-    ['Data de entrega', '26/05/2026'],
-    ['Status', 'Código concluído — aguarda config GCP'],
+    ['Data de início', '04/05/2026'],
+    ['Data de entrega', '23/05/2026'],
+    ['Status', 'Concluído'],
     ['Branch', 'feature/sprint1-finalization'],
     ['Commit', '(será preenchido após push)'],
   ],

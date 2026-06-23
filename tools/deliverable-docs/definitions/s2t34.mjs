@@ -4,7 +4,7 @@
 
 export default {
   output:
-    'Entregas/Sprint 2/Geração de Prompts/H7 - Desenvolver gerador de system prompt/PSP2 - S2T34 - Tela de Prompts.docx',
+    'Entregas/Teams/Tarefas/Sprint 2/Geração de Prompts/H7 - Desenvolver gerador de system prompt/PSP2 - S2T34 - Tela de Prompts.docx',
 
   title: 'PSP2 — Entrega Sprint 2 / Tarefa 34',
   subtitle: 'Tela /prompts com Cards Copiáveis — IMPLEMENTADA',
@@ -24,7 +24,7 @@ export default {
     ['Planning Poker', '3'],
     ['Data de início', '14/05/2026'],
     ['Data de entrega', '26/05/2026'],
-    ['Status', 'Concluída'],
+    ['Status', 'Concluído'],
     ['Branch', 'feature/sprint1-finalization'],
     ['Commit', '(será preenchido após push)'],
   ],

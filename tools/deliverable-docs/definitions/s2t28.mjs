@@ -4,7 +4,7 @@
 
 export default {
   output:
-    'Entregas/Sprint 2/Integração Google Drive/H6 - Implementar exportação para Google Drive/PSP2 - S2T28 - Criar Pastas Drive.docx',
+    'Entregas/Teams/Tarefas/Sprint 2/Integração Google Drive/H6 - Implementar exportação para Google Drive/PSP2 - S2T28 - Criar Pastas Drive.docx',
 
   title: 'PSP2 — Entrega Sprint 2 / Tarefa 28',
   subtitle: 'Criação Automática de Estrutura de Pastas no Drive — IMPLEMENTADA',
@@ -24,7 +24,7 @@ export default {
     ['Planning Poker', '3'],
     ['Data de início', '14/05/2026'],
     ['Data de entrega', '26/05/2026'],
-    ['Status', 'Concluída'],
+    ['Status', 'Concluído'],
     ['Branch', 'feature/sprint1-finalization'],
     ['Commit', '(será preenchido após push)'],
   ],

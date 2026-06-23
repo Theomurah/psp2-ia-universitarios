@@ -16,8 +16,8 @@ const H20 = 'H20 - Finalizar e submeter o artigo';
 
 const INI = '05/06/2026';
 const FIM = '14/06/2026';
-const CORPO = 'Entregas/Sprint 0/PSP2_Artigo_ENEGEP_Introducao.docx';
-const CAPA = 'Entregas/Sprint 0/PSP2_Artigo_ENEGEP_Capa.docx';
+const CORPO = 'Entregas/Teams/Tarefas/Sprint 0/PSP2_Artigo_ENEGEP_Introducao.docx';
+const CAPA = 'Entregas/Teams/Tarefas/Sprint 0/PSP2_Artigo_ENEGEP_Capa.docx';
 
 function id(n, historia, tarefa, resp, poker, status, arquivo) {
   return [
@@ -36,7 +36,7 @@ function id(n, historia, tarefa, resp, poker, status, arquivo) {
 
 export default [
   {
-    output: `Entregas/Sprint 4/${EPICO}/${H19}/PSP2 - S4T53 - Introducao Problema e Justificativa.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 4/${EPICO}/${H19}/PSP2 - S4T53 - Introducao Problema e Justificativa.docx`,
     title: 'PSP2 — Entrega Sprint 4 / Tarefa 53',
     subtitle: 'Introdução, problema, justificativa e objetivos SMART (Seção 1)',
     emPalavrasSimples: [
@@ -86,7 +86,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 4/${EPICO}/${H19}/PSP2 - S4T54 - Revisao Bibliografica Metodologia e Arquitetura.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 4/${EPICO}/${H19}/PSP2 - S4T54 - Revisao Bibliografica Metodologia e Arquitetura.docx`,
     title: 'PSP2 — Entrega Sprint 4 / Tarefa 54',
     subtitle: 'Revisão bibliográfica, metodologia (DSRM) e arquitetura do sistema (Seções 2–4)',
     emPalavrasSimples: [
@@ -145,7 +145,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 4/${EPICO}/${H19}/PSP2 - S4T55 - Resultados Dados Feedback e Discussao.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 4/${EPICO}/${H19}/PSP2 - S4T55 - Resultados Dados Feedback e Discussao.docx`,
     title: 'PSP2 — Entrega Sprint 4 / Tarefa 55',
     subtitle: 'Resultados, artefato e discussão (Seção 5) — avaliação planejada, sem números fabricados',
     emPalavrasSimples: [
@@ -191,7 +191,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 4/${EPICO}/${H19}/PSP2 - S4T56 - Consideracoes Finais e Trabalhos Futuros.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 4/${EPICO}/${H19}/PSP2 - S4T56 - Consideracoes Finais e Trabalhos Futuros.docx`,
     title: 'PSP2 — Entrega Sprint 4 / Tarefa 56',
     subtitle: 'Considerações finais, limitações e trabalhos futuros (Seção 6)',
     emPalavrasSimples: [
@@ -247,7 +247,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 4/${EPICO}/${H20}/PSP2 - S4T57 - Capa Resumo Palavras-chave e Referencias.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 4/${EPICO}/${H20}/PSP2 - S4T57 - Capa Resumo Palavras-chave e Referencias.docx`,
     title: 'PSP2 — Entrega Sprint 4 / Tarefa 57',
     subtitle: 'Capa, resumo, palavras-chave e referências ABNT (Seção 7)',
     emPalavrasSimples: [
@@ -294,7 +294,7 @@ export default [
     },
   },
   {
-    output: `Entregas/Sprint 4/${EPICO}/${H20}/PSP2 - S4T58 - Revisao Formatacao ABNT e Submissao.docx`,
+    output: `Entregas/Teams/Tarefas/Sprint 4/${EPICO}/${H20}/PSP2 - S4T58 - Revisao Formatacao ABNT e Submissao.docx`,
     title: 'PSP2 — Entrega Sprint 4 / Tarefa 58',
     subtitle: 'Revisão, formatação ABNT NBR 14724:2024, PDF e pacote de submissão',
     emPalavrasSimples: [
