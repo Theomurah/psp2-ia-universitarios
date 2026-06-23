@@ -38,6 +38,8 @@ import {
   ensureFolderPath,
   uploadMarkdown,
   updateMarkdown,
+  uploadFile,
+  updateFile,
   ensureFreshToken,
   DriveAuthExpiredError,
   DriveError,
@@ -321,6 +323,53 @@ async function runPipeline(jobId: string): Promise<void> {
     if (dlErr || !fileBlob) throw new Error(`Falha ao baixar do Storage: ${dlErr?.message}`);
     const buffer = new Uint8Array(await fileBlob.arrayBuffer());
     const mimeType = fileBlob.type || undefined;
+
+    // ---------------------------------------------------------------------
+    // Modo 'raw' (migration 0033): só arquiva o ORIGINAL no Drive, sem rodar
+    // o LLM (sem parse-OCR/classify/synthesize). Custo zero. Vai pra
+    // {semestre}/Originais com o nome que o aluno subiu.
+    // ---------------------------------------------------------------------
+    if (doc.drive_upload_mode === 'raw') {
+      await logEvent('parse', 'success', {
+        duration_ms: Date.now() - t0,
+        message: `${buffer.length} bytes (modo original — sem síntese)`,
+      });
+      await setStep('upload_drive', 90);
+      const semestre = profile.semestre_atual ?? '2026.1';
+      const rawRes = await tryUploadRawToDrive({
+        profile, service,
+        bytes: buffer, mimeType,
+        filename: doc.filename_original,
+        pathSegments: [semestre, 'Originais'],
+        existingFileId: doc.drive_raw_file_id ?? null,
+      });
+      if (rawRes.skipped) {
+        await logEvent('upload_drive', 'warning', { message: rawRes.reason });
+      } else if (rawRes.error) {
+        await logEvent('upload_drive', 'error', { message: rawRes.error });
+      } else {
+        await logEvent('upload_drive', 'success', {
+          duration_ms: rawRes.duration_ms,
+          message: `original no Drive: ${rawRes.file_id}`,
+        });
+        await service.from('documents').update({
+          drive_raw_file_id: rawRes.file_id,
+          drive_folder_path: `${semestre}/Originais`,
+        }).eq('id', doc.id);
+      }
+      await updateJobChecked(service, jobId, {
+        status: 'completed',
+        current_step: null,
+        progress_percent: 100,
+        chars_input: 0,
+        cost_usd_total: 0,
+        completed_at: new Date().toISOString(),
+      });
+      await service.from('documents').update({ processed_at: new Date().toISOString() }).eq('id', doc.id);
+      log.info('pipeline_completed', { job_id: jobId, status: 'completed', mode: 'raw', cost_usd_total: 0 });
+      return;
+    }
+
     // Modelo de OCR resolvido em runtime via getModelConfig() — cascata
     // app_settings (`model_vision`, editável no /admin) → env VISION_MODEL/
     // VISION_PROVIDER → default. Antes getVisionProvider() lia só env e a
@@ -620,6 +669,32 @@ async function runPipeline(jobId: string): Promise<void> {
       }).eq('id', doc.id);
     }
 
+    // Modo 'both' (migration 0033): além da síntese, sobe o ORIGINAL na mesma
+    // pasta da matéria. Nome conforme a escolha do upload (original/organizado).
+    if (doc.drive_upload_mode === 'both') {
+      const rawFilename = doc.drive_raw_name_mode === 'organized'
+        ? organizedRawName(filenameFinal, doc.filename_original)
+        : doc.filename_original;
+      const rawRes = await tryUploadRawToDrive({
+        profile, service,
+        bytes: buffer, mimeType,
+        filename: rawFilename,
+        pathSegments: [profile.semestre_atual ?? '2026.1', materiaNome],
+        existingFileId: doc.drive_raw_file_id ?? null,
+      });
+      if (rawRes.skipped) {
+        await logEvent('upload_drive', 'warning', { message: `original: ${rawRes.reason}` });
+      } else if (rawRes.error) {
+        await logEvent('upload_drive', 'error', { message: `original: ${rawRes.error}` });
+      } else {
+        await logEvent('upload_drive', 'success', {
+          duration_ms: rawRes.duration_ms,
+          message: `original no Drive: ${rawRes.file_id}`,
+        });
+        await service.from('documents').update({ drive_raw_file_id: rawRes.file_id }).eq('id', doc.id);
+      }
+    }
+
     // 7) Conclui
     const totalCost = cls.usage.cost_usd + synth.usage.cost_usd + comp.usage.cost_usd;
     // needs_review tem prioridade sobre completed_with_warning: classificação
@@ -694,36 +769,26 @@ type DriveAttemptResult =
   | { skipped: false; error: string; file_id?: undefined; duration_ms?: undefined; reason?: undefined }
   | { skipped: false; error?: undefined; file_id: string; duration_ms: number; reason?: undefined };
 
-async function tryUploadToDrive(args: {
+/**
+ * Resolve um access token válido do Drive a partir do profile (com refresh +
+ * persistência dos tokens rotacionados). Compartilhado pelos uploads de
+ * síntese e de original. Retorna skip (Drive não conectado / token expirado)
+ * ou error — sem derrubar o pipeline.
+ */
+async function resolveDriveToken(
   // deno-lint-ignore no-explicit-any
-  profile: any;
-  filename: string;
-  markdown: string;
-  pathSegments: string[];
-  /** drive_file_id de upload anterior — reprocessamento atualiza in-place. */
-  existingFileId: string | null;
+  profile: any,
   // deno-lint-ignore no-explicit-any
-  service: any;
-}): Promise<DriveAttemptResult> {
-  const { profile, filename, markdown, pathSegments, existingFileId, service } = args;
-
-  // Defesa em profundidade: aborta upload se markdown for absurdamente grande.
-  // Síntese normal raramente passa de 50-100 KB; > 1 MB é alucinação do LLM
-  // ou expansão indevida — não vale gastar storage do Drive nem quota Google.
-  // Origem: auditoria 2026-05-26 (Agente 3 — Segurança, achado S-08).
-  const MAX_MARKDOWN_BYTES = 1_000_000;
-  if (markdown.length > MAX_MARKDOWN_BYTES) {
-    return {
-      skipped: false,
-      error: `Markdown gerado (${markdown.length} bytes) excedeu limite de ${MAX_MARKDOWN_BYTES} bytes — upload pro Drive abortado`,
-    };
-  }
-
+  service: any,
+): Promise<
+  | { ok: true; accessToken: string }
+  | { ok: false; skipped: true; reason: string }
+  | { ok: false; skipped: false; error: string }
+> {
   if (!profile.google_refresh_token) {
-    return { skipped: true, reason: 'Drive não conectado (sem refresh_token salvo)' };
+    return { ok: false, skipped: true, reason: 'Drive não conectado (sem refresh_token salvo)' };
   }
 
-  // Monta token pair a partir do profile; faz refresh se já passou da validade
   let token: DriveTokenPair = {
     access_token: profile.google_access_token ?? '',
     refresh_token: profile.google_refresh_token,
@@ -738,18 +803,14 @@ async function tryUploadToDrive(args: {
     token = await ensureFreshToken(token);
   } catch (err) {
     if (err instanceof DriveAuthExpiredError) {
-      return { skipped: true, reason: 'Token Google expirado — reconectar Drive na tela de Configurações' };
+      return { ok: false, skipped: true, reason: 'Token Google expirado — reconectar Drive na tela de Configurações' };
     }
-    return { skipped: false, error: `refresh falhou: ${(err as Error).message}` };
+    return { ok: false, skipped: false, error: `refresh falhou: ${(err as Error).message}` };
   }
 
   // Persiste eventuais novos tokens (Google às vezes rotaciona — inclusive o
-  // refresh_token; descartá-lo quebraria todo refresh futuro até reconectar).
-  // ATENÇÃO: PostgrestBuilder só implementa `then` — chamar `.catch()` nele
-  // lançava TypeError sempre que o refresh acontecia (qualquer upload >1h
-  // após conectar o Drive), derrubando o pipeline inteiro DEPOIS do custo
-  // LLM já gasto. Além disso, builders supabase nunca rejeitam em erro de
-  // DB — o erro vem em `{ error }` e precisa ser checado explicitamente.
+  // refresh_token). Builder supabase só implementa `then` (nunca `.catch()`) e
+  // não rejeita em erro de DB — checar `{ error }` explicitamente.
   // Origem: auditoria 2026-06-10 (EDGE-HANDLERS-04).
   if (token.access_token !== profile.google_access_token) {
     const { error: tokenPersistErr } = await service.from('profiles').update({
@@ -758,42 +819,57 @@ async function tryUploadToDrive(args: {
       google_token_expires_at: new Date(token.expires_at).toISOString(),
     }).eq('id', profile.id);
     if (tokenPersistErr) {
-      // Não bloqueia o upload — migration 0004 pode não estar aplicada.
       log.warn('token_persist_failed', { user_id: profile.id, ...log.fromError(tokenPersistErr) });
     }
   }
 
+  return { ok: true, accessToken: token.access_token };
+}
+
+async function tryUploadToDrive(args: {
+  // deno-lint-ignore no-explicit-any
+  profile: any;
+  filename: string;
+  markdown: string;
+  pathSegments: string[];
+  /** drive_file_id de upload anterior — reprocessamento atualiza in-place. */
+  existingFileId: string | null;
+  // deno-lint-ignore no-explicit-any
+  service: any;
+}): Promise<DriveAttemptResult> {
+  const { profile, filename, markdown, pathSegments, existingFileId, service } = args;
+
+  // Defesa em profundidade: aborta upload se markdown for absurdamente grande.
+  // Síntese normal raramente passa de 50-100 KB; > 1 MB é alucinação do LLM.
+  // Origem: auditoria 2026-05-26 (Agente 3 — Segurança, achado S-08).
+  const MAX_MARKDOWN_BYTES = 1_000_000;
+  if (markdown.length > MAX_MARKDOWN_BYTES) {
+    return {
+      skipped: false,
+      error: `Markdown gerado (${markdown.length} bytes) excedeu limite de ${MAX_MARKDOWN_BYTES} bytes — upload pro Drive abortado`,
+    };
+  }
+
+  const tok = await resolveDriveToken(profile, service);
+  if (!tok.ok) {
+    return tok.skipped ? { skipped: true, reason: tok.reason } : { skipped: false, error: tok.error };
+  }
+  const accessToken = tok.accessToken;
+
   const t0 = Date.now();
   try {
-    // Reprocessamento: se o doc já subiu antes, atualiza o arquivo in-place
-    // (PATCH) em vez de criar duplicata — o Drive aceita nomes repetidos na
-    // mesma pasta e o drive_file_id antigo ficaria órfão.
+    // Reprocessamento: atualiza in-place (PATCH) em vez de duplicar.
     if (existingFileId) {
       try {
-        const updated = await updateMarkdown({
-          accessToken: token.access_token,
-          fileId: existingFileId,
-          filename,
-          markdown,
-        });
+        const updated = await updateMarkdown({ accessToken, fileId: existingFileId, filename, markdown });
         return { skipped: false, file_id: updated.id, duration_ms: Date.now() - t0 };
       } catch (err) {
-        // 404 = arquivo apagado em definitivo no Drive — cai pro fluxo de criação
         if (!(err instanceof DriveError) || err.status !== 404) throw err;
       }
     }
 
-    const folderId = await ensureFolderPath(
-      profile.drive_root_folder_id,
-      pathSegments,
-      { accessToken: token.access_token },
-    );
-    const file = await uploadMarkdown({
-      accessToken: token.access_token,
-      parentId: folderId,
-      filename,
-      markdown,
-    });
+    const folderId = await ensureFolderPath(profile.drive_root_folder_id, pathSegments, { accessToken });
+    const file = await uploadMarkdown({ accessToken, parentId: folderId, filename, markdown });
     return { skipped: false, file_id: file.id, duration_ms: Date.now() - t0 };
   } catch (err) {
     if (err instanceof DriveAuthExpiredError) {
@@ -804,4 +880,65 @@ async function tryUploadToDrive(args: {
     }
     return { skipped: false, error: (err as Error).message };
   }
+}
+
+/**
+ * Sobe o arquivo ORIGINAL (bytes crus) pro Drive — modos 'raw' e 'both'
+ * (migration 0033). Reusa o token do profile; reprocessa in-place via
+ * drive_raw_file_id. Sem o guard de 1 MB da síntese: o original pode ir até o
+ * limite de upload (50 MiB), com resumable automático no módulo de Drive.
+ */
+async function tryUploadRawToDrive(args: {
+  // deno-lint-ignore no-explicit-any
+  profile: any;
+  // deno-lint-ignore no-explicit-any
+  service: any;
+  bytes: Uint8Array;
+  mimeType?: string;
+  filename: string;
+  pathSegments: string[];
+  existingFileId: string | null;
+}): Promise<DriveAttemptResult> {
+  const { profile, service, bytes, mimeType, filename, pathSegments, existingFileId } = args;
+
+  const tok = await resolveDriveToken(profile, service);
+  if (!tok.ok) {
+    return tok.skipped ? { skipped: true, reason: tok.reason } : { skipped: false, error: tok.error };
+  }
+  const accessToken = tok.accessToken;
+  const contentType = mimeType || 'application/octet-stream';
+
+  const t0 = Date.now();
+  try {
+    if (existingFileId) {
+      try {
+        const updated = await updateFile({ accessToken, fileId: existingFileId, filename, content: bytes, mimeType: contentType });
+        return { skipped: false, file_id: updated.id, duration_ms: Date.now() - t0 };
+      } catch (err) {
+        if (!(err instanceof DriveError) || err.status !== 404) throw err;
+      }
+    }
+
+    const folderId = await ensureFolderPath(profile.drive_root_folder_id, pathSegments, { accessToken });
+    const file = await uploadFile({ accessToken, parentId: folderId, filename, content: bytes, mimeType: contentType });
+    return { skipped: false, file_id: file.id, duration_ms: Date.now() - t0 };
+  } catch (err) {
+    if (err instanceof DriveAuthExpiredError) {
+      return { skipped: true, reason: 'Token Google rejeitado pelo Drive — reconectar' };
+    }
+    if (err instanceof DriveError) {
+      return { skipped: false, error: `Drive ${err.status}: ${err.message}` };
+    }
+    return { skipped: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * Nome "organizado" do original: a nomenclatura da síntese (filenameFinal,
+ * `.md`) com a extensão real do arquivo subido. Ex: "FISICA3 - Aula - U5
+ * Beethoven.pdf". Só usado no modo 'both' (onde há classificação).
+ */
+function organizedRawName(filenameFinal: string, originalName: string): string {
+  const ext = originalName.split('.').pop()?.toLowerCase() || 'bin';
+  return `${filenameFinal.replace(/\.md$/i, '')}.${ext}`;
 }

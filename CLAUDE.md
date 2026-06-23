@@ -219,18 +219,37 @@ em componentes/CSS novos. Os tokens vivem em `apps/web/src/index.css` no `:root`
 ### Responsividade (mobile-first nas correções)
 
 > Origem: 2026-06-11 — UI tornada reativa pra todas as telas.
+> Revisão: 2026-06-23 — auditoria exaustiva de overflow (breakpoint da topbar +
+> quebra de conteúdo longo).
 
-1. **Topbar mobile (≤ 768px):** os links viram um dropdown sob o botão
-   hambúrguer (`.topbar-burger`); em desktop seguem inline. A topbar **nunca**
+1. **Topbar mobile/tablet (≤ 1024px):** os links viram um dropdown sob o botão
+   hambúrguer (`.topbar-burger`); acima disso seguem inline. A topbar **nunca**
    é escondida (regra acima continua valendo) — só os links colapsam. Ao
    adicionar um link novo na topbar, ele entra automaticamente no menu mobile.
+   O breakpoint é **1024px** (não 768): a topbar completa — logo + 6 links +
+   email + avatar — precisa de ~1150px pra caber inline, então colapsar só ≤768
+   deixava tablets/laptops pequenos transbordando. Há uma faixa intermediária
+   (1025–1200px) que mostra os links inline mas compactos (esconde subtítulo do
+   logo + email, aperta padding); o layout completo (com email + subtítulo) só
+   ≥ 1201px.
 2. **Grids fluidos:** use `repeat(auto-fill/fit, minmax(min(Npx, 100%), 1fr))`,
    **nunca** `minmax(Npx, 1fr)` puro — sem o `min()`, telas mais estreitas que
    `N` forçam scroll horizontal.
 3. **Tabelas largas:** o wrapper (`.atividade-table-wrapper`) usa
-   `overflow-x: auto` pra rolar no mobile em vez de cortar colunas.
+   `overflow-x: auto` pra rolar no mobile em vez de cortar colunas. Tabela de
+   markdown (`.markdown-rendered table`) vira `display:block; overflow-x:auto`
+   pelo mesmo motivo (não tem wrapper).
 4. Grupos de pills/ações que podem estourar (`.prompts-filter`, `.privacy-action`,
    `.admin-subnav`) levam `flex-wrap: wrap`.
+5. **Conteúdo longo (nome de baralho/documento, título de prompt, URL, código,
+   filename):** título/texto que recebe dado do usuário leva `overflow-wrap:
+   break-word`. **Atenção ao combo flex/grid:** um item flex/grid tem
+   `min-width: auto` por padrão, então cresce até o min-content (a palavra
+   inteira) e o `overflow-wrap` não age — é preciso pôr `min-width: 0` no item
+   (ex: `.job-card`, `.deck-card`, `.dashboard-header > *`, `.admin-model-row > *`).
+   Quando o próprio elemento é um container flex (ex: `.dashboard-header h1`),
+   use `overflow-wrap: anywhere` (não `break-word`): só `anywhere` reduz o
+   min-content do flex item anônimo de texto.
 
 ### Tema claro / escuro
 

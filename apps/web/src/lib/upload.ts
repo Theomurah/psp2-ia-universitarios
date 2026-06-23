@@ -5,10 +5,16 @@
 
 import { supabase } from './supabase';
 import { createLogger } from './log';
-import type { FormatoDocumento, UploadResponse } from '@psp2/shared';
+import type { FormatoDocumento, UploadResponse, DriveUploadMode, DriveRawNameMode } from '@psp2/shared';
 import { MIME_TO_FORMAT } from '@psp2/shared';
 
 const log = createLogger('upload');
+
+/** Opções de envio ao Drive escolhidas no upload (migration 0033). */
+export interface UploadOptions {
+  driveUploadMode?: DriveUploadMode;
+  driveRawNameMode?: DriveRawNameMode;
+}
 
 export function detectFormat(file: File): FormatoDocumento | null {
   if (file.type in MIME_TO_FORMAT) return MIME_TO_FORMAT[file.type];
@@ -21,7 +27,7 @@ export function detectFormat(file: File): FormatoDocumento | null {
   return null;
 }
 
-export async function uploadDocument(file: File): Promise<UploadResponse> {
+export async function uploadDocument(file: File, opts: UploadOptions = {}): Promise<UploadResponse> {
   const format = detectFormat(file);
   if (!format) {
     // Loga só mime/ext — nunca o nome do arquivo (PII).
@@ -77,6 +83,8 @@ export async function uploadDocument(file: File): Promise<UploadResponse> {
       format,
       size_bytes: file.size,
       storage_path: storagePath,
+      drive_upload_mode: opts.driveUploadMode ?? 'synthesized',
+      drive_raw_name_mode: opts.driveRawNameMode ?? 'original',
     }),
   });
 

@@ -4,7 +4,13 @@
  */
 
 import { z } from 'zod';
-import { TIPOS_DOCUMENTO, FORMATOS_SUPORTADOS, NOMENCLATURA } from './constants.ts';
+import {
+  TIPOS_DOCUMENTO,
+  FORMATOS_SUPORTADOS,
+  NOMENCLATURA,
+  DRIVE_UPLOAD_MODES,
+  DRIVE_RAW_NAME_MODES,
+} from './constants.ts';
 
 // =============================================================
 // Classificação (T09)
@@ -126,6 +132,10 @@ export const UploadRequestSchema = z.object({
   format: z.enum(FORMATOS_SUPORTADOS),
   size_bytes: z.number().int().positive().max(50 * 1024 * 1024), // 50 MiB
   storage_path: z.string().min(1),
+  // Opções de envio ao Drive escolhidas no upload (migration 0033). Defaults
+  // preservam o comportamento atual (só síntese; nome do cru irrelevante).
+  drive_upload_mode: z.enum(DRIVE_UPLOAD_MODES).default('synthesized'),
+  drive_raw_name_mode: z.enum(DRIVE_RAW_NAME_MODES).default('original'),
 });
 export type UploadRequest = z.infer<typeof UploadRequestSchema>;
 

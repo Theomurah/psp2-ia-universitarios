@@ -9,6 +9,8 @@ import type {
   JobStatus,
   PipelineStep,
   TipoDocumento,
+  DriveUploadMode,
+  DriveRawNameMode,
 } from './constants.ts';
 import type { CardState, Rating } from './srs.ts';
 
@@ -67,6 +69,11 @@ export interface DocumentRecord {
 
   drive_file_id: string | null;
   drive_folder_path: string | null;
+
+  // Opções de envio ao Drive escolhidas no upload (migration 0033)
+  drive_upload_mode: DriveUploadMode;
+  drive_raw_name_mode: DriveRawNameMode;
+  drive_raw_file_id: string | null;
 
   // Resultado da classificação (T09)
   materia_code: string | null;

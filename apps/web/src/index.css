@@ -142,7 +142,7 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-h1, h2, h3 { color: var(--text); margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+h1, h2, h3 { color: var(--text); margin: 0; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: break-word; }
 h1 { font-size: 1.75rem; }
 h2 { font-size: 1.25rem; }
 h3 { font-size: 1.05rem; }
@@ -281,15 +281,18 @@ hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
   flex-shrink: 0;
 }
 
-/* Topbar mobile — links viram menu dropdown sob o hambúrguer (≤ 768px) */
-@media (max-width: 768px) {
+/* Topbar mobile/tablet — links viram menu dropdown sob o hambúrguer.
+   Breakpoint em 1024px: a topbar completa (logo + 6 links + email + avatar)
+   precisa de ~1150px pra caber inline; abaixo disso colapsa pro menu pra não
+   estourar (bug responsivo 2026-06-23 — antes colapsava só ≤768, então
+   tablets e laptops pequenos transbordavam horizontalmente). */
+@media (max-width: 1024px) {
   .topbar {
     gap: 0.75rem;
     padding: 0.7rem 1rem;
   }
   .topbar .brand { margin-right: auto; }
   .topbar-burger { display: inline-flex; }
-  .topbar-user .user-email { display: none; }
   .topbar-links {
     position: absolute;
     top: 100%;
@@ -311,7 +314,22 @@ hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
   }
 }
 
-/* Telas bem estreitas: esconde o subtítulo do logo pra liberar espaço */
+/* Faixa intermediária (1025–1200px): links inline mas compactos — esconde o
+   subtítulo do logo, aperta o padding e reduz o gap pra tudo caber sem estourar
+   antes do layout completo (≥1201px) liberar email + subtítulo. */
+@media (min-width: 1025px) and (max-width: 1200px) {
+  .topbar { gap: 1rem; }
+  .topbar-links a { padding: 0.45rem 0.6rem; }
+  .unb-logo-sub { display: none; }
+}
+
+/* Email do usuário só cabe com folga no layout completo; abaixo disso o avatar
+   já identifica a conta. */
+@media (max-width: 1200px) {
+  .topbar-user .user-email { display: none; }
+}
+
+/* Telas bem estreitas: esconde o nome do logo inteiro pra liberar espaço */
 @media (max-width: 380px) {
   .topbar .unb-logo-text { display: none; }
 }
@@ -610,10 +628,20 @@ input::placeholder { color: var(--text-muted); opacity: 0.7; }
   gap: 1rem;
   flex-wrap: wrap;
 }
+/* min-width:0 deixa o wrapper do título encolher abaixo do conteúdo, pra que
+   títulos longos (nome de baralho/documento) quebrem em vez de estourar — sem
+   isto o flex item cresce até o min-content e o overflow-wrap do <h1> não age. */
+.dashboard-header > * { min-width: 0; }
 .dashboard-header h1 {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  flex-wrap: wrap;
+  min-width: 0;
+  /* `anywhere` (não `break-word`) porque o h1 é flex: o texto vira um flex item
+     anônimo e só `anywhere` reduz o min-content a ponto do item encolher e
+     quebrar títulos longos (nome de baralho/documento) em vez de estourar. */
+  overflow-wrap: anywhere;
 }
 .realtime-pill {
   display: inline-flex;
@@ -674,6 +702,38 @@ input::placeholder { color: var(--text-muted); opacity: 0.7; }
   color: var(--primary);
 }
 
+/* Staging de upload (opções de envio ao Drive — migration 0033) */
+.upload-staging {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.upload-staged-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.upload-staged-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-muted);
+  border-radius: var(--radius-sm);
+}
+.upload-staged-list li .cell-truncate { flex: 1; min-width: 0; }
+.upload-staged-list li .muted { font-size: 0.85rem; white-space: nowrap; }
+.upload-staging-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 /* Jobs */
 .jobs-section h2 {
   display: flex;
@@ -711,6 +771,7 @@ input::placeholder { color: var(--text-muted); opacity: 0.7; }
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  min-width: 0;
 }
 .job-card:hover {
   border-color: var(--primary);
@@ -726,6 +787,9 @@ input::placeholder { color: var(--text-muted); opacity: 0.7; }
 .job-card .filename {
   font-weight: 600;
   color: var(--text);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -733,12 +797,15 @@ input::placeholder { color: var(--text-muted); opacity: 0.7; }
   color: var(--text-muted);
   font-size: 0.82rem;
   margin: 0;
+  overflow-wrap: break-word;
 }
 .job-card .filename-final {
   color: var(--success);
   font-size: 0.82rem;
   margin-top: 0.25rem;
+  overflow-wrap: break-word;
 }
+.job-card small { overflow-wrap: break-word; }
 .job-card small.error { color: var(--error); font-size: 0.82rem; }
 
 .badge {
@@ -915,6 +982,8 @@ input::placeholder { color: var(--text-muted); opacity: 0.7; }
   font-size: 0.92rem;
   line-height: 1.65;
   color: var(--text);
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .markdown-rendered > :first-child { margin-top: 0; }
 .markdown-rendered > :last-child { margin-bottom: 0; }
@@ -964,16 +1033,27 @@ input::placeholder { color: var(--text-muted); opacity: 0.7; }
   padding: 0.1em 0.35em;
   border-radius: var(--radius-sm);
 }
-.markdown-rendered pre { margin: 0 0 0.75em; }
+.markdown-rendered pre {
+  margin: 0 0 0.75em;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .markdown-rendered pre code {
   background: none;
   padding: 0;
   font-size: inherit;
 }
+/* Tabela de markdown vira bloco rolável pra não estourar a largura quando tem
+   muitas colunas (não há wrapper .atividade-table-wrapper aqui). */
 .markdown-rendered table {
+  display: block;
   border-collapse: collapse;
   margin: 0 0 0.75em;
-  width: 100%;
+  max-width: 100%;
+  width: max-content;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   font-size: 0.88em;
 }
 .markdown-rendered th,
@@ -1107,6 +1187,7 @@ form.settings label {
   justify-content: space-between;
   margin-bottom: 1.5rem;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 .onboarding-steps {
   display: flex;
@@ -1148,6 +1229,10 @@ form.settings label {
   border-radius: var(--radius-sm);
   font-size: 0.88rem;
   color: var(--warn);
+}
+/* Em telas pequenas o padding de 2rem rouba muito espaço útil do card. */
+@media (max-width: 480px) {
+  .onboarding-card { padding: 1.5rem 1.25rem; }
 }
 .horario-grid {
   display: grid;
@@ -1355,6 +1440,8 @@ form.settings label {
   font-weight: 600;
   margin: 0;
   line-height: 1.3;
+  flex: 1;
+  min-width: 0;
 }
 .prompt-card-tags {
   display: flex;
@@ -1404,6 +1491,7 @@ form.settings label {
   font-size: 0.85rem;
   color: var(--text-muted);
   line-height: 1.45;
+  overflow-wrap: break-word;
 }
 .prompt-vars {
   border: 1px solid var(--border);
@@ -1441,6 +1529,7 @@ form.settings label {
   font-size: 0.78rem;
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, monospace;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--text-muted);
   line-height: 1.45;
   max-height: 6.5rem;
@@ -1533,6 +1622,7 @@ form.settings label {
 .legal-content li {
   color: var(--text);
   line-height: 1.65;
+  overflow-wrap: break-word;
 }
 .legal-content ul {
   padding-left: 1.4rem;
@@ -1546,6 +1636,7 @@ form.settings label {
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
   font-size: 0.88rem;
+  overflow-wrap: anywhere;
 }
 
 /* =============================================================
@@ -2221,10 +2312,11 @@ form.settings label {
 }
 .admin-prompt-row + .admin-prompt-row { margin-top: 0.5rem; }
 .admin-prompt-row-info { min-width: 0; flex: 1; }
-.admin-prompt-row-info strong { display: block; color: var(--text); }
+.admin-prompt-row-info strong { display: block; color: var(--text); overflow-wrap: break-word; }
 .admin-prompt-row-info p {
   margin: 0.2rem 0 0;
   color: var(--text-muted); font-size: 0.88rem;
+  overflow-wrap: break-word;
 }
 .admin-prompt-row-info small { color: var(--text-muted); font-size: 0.78rem; }
 .admin-prompt-editor {
@@ -2254,6 +2346,7 @@ form.settings label {
   border-radius: var(--radius);
 }
 .admin-model-row + .admin-model-row { margin-top: 0.5rem; }
+.admin-model-row > * { min-width: 0; }
 .admin-model-row code {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, monospace;
   font-size: 0.88rem;
@@ -2262,10 +2355,12 @@ form.settings label {
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm);
   display: inline-block;
+  overflow-wrap: anywhere;
 }
 .admin-model-row p {
   margin: 0.3rem 0 0;
   font-size: 0.82rem; color: var(--text-muted);
+  overflow-wrap: break-word;
 }
 /* Descrição didática do estágio — texto principal, legível */
 .admin-model-row p.admin-model-desc {
@@ -2584,6 +2679,7 @@ form.settings label {
   position: relative;
   overflow: hidden;
   color: var(--text);
+  min-width: 0;
 }
 .materia-card-v2::before {
   content: '';
@@ -2626,6 +2722,7 @@ form.settings label {
   font-size: 1rem;
   line-height: 1.3;
   color: var(--text);
+  overflow-wrap: break-word;
 }
 .materia-card-v2-horario {
   font-size: 0.83rem;
@@ -2730,9 +2827,13 @@ form.settings label {
   border-bottom: 1px solid var(--border);
   gap: 0.75rem;
 }
+/* min-width:0 deixa o bloco do título encolher; o header não rola (só o body),
+   então um título longo precisa quebrar aqui pra não estourar a largura. */
+.modal-header > div { min-width: 0; }
 .modal-header h2 {
   font-size: 1.1rem;
   margin: 0 0 0.15rem 0;
+  overflow-wrap: anywhere;
 }
 .modal-header p { margin: 0; font-size: 0.85rem; }
 .modal-body {
@@ -2840,11 +2941,14 @@ form.settings label {
 .import-preview-head strong {
   font-family: ui-monospace, monospace;
   font-size: 0.88rem;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .import-preview-nome {
   font-weight: 500;
   margin: 0.2rem 0;
   font-size: 0.92rem;
+  overflow-wrap: break-word;
 }
 .import-preview-meta-line {
   font-size: 0.78rem;
@@ -2974,8 +3078,10 @@ form.settings label {
   justify-content: space-between;
   gap: 1rem;
   transition: box-shadow 0.15s;
+  min-width: 0;
 }
 .deck-card:hover { box-shadow: var(--shadow); }
+.deck-card-body { min-width: 0; }
 .deck-card-body h2 { font-size: 1.05rem; margin: 0 0 0.35rem; }
 .deck-card-meta {
   display: flex;
@@ -3015,6 +3121,9 @@ form.settings label {
   font-size: 1.1rem;
   line-height: 1.6;
   text-align: center;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
 .study-card-divider {
   border: none;
@@ -3132,6 +3241,13 @@ kbd {
   gap: 0.5rem;
   flex-wrap: wrap;
   font-size: 0.85rem;
+  min-width: 0;
+}
+.fc-card-tags .muted,
+.fc-card-tags .badge {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 
 /* Dropzone de importação (Fase 4) */

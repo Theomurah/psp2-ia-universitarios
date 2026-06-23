@@ -77,7 +77,7 @@ serve(async (req) => {
       log.warn('invalid_body', { user_id: user.id });
       return errorResponse(req, 'invalid_body', 400);
     }
-    const { filename_original, format, size_bytes, storage_path } = parsed.data;
+    const { filename_original, format, size_bytes, storage_path, drive_upload_mode, drive_raw_name_mode } = parsed.data;
 
     // 4) Verifica que o storage_path pertence ao próprio usuário e tem o
     //    formato estrito `<user.id>/<arquivo>` — um único segmento de arquivo,
@@ -138,6 +138,8 @@ serve(async (req) => {
         format,
         size_bytes: realSizeBytes,
         storage_path,
+        drive_upload_mode,
+        drive_raw_name_mode,
       })
       .select()
       .single();

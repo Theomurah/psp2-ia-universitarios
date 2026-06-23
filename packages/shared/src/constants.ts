@@ -46,6 +46,15 @@ export const MIME_TO_FORMAT: Record<string, FormatoDocumento> = {
 };
 
 // =============================================================
+// Drive — opções de envio por upload (migration 0033)
+// =============================================================
+export const DRIVE_UPLOAD_MODES = ['synthesized', 'raw', 'both'] as const;
+export type DriveUploadMode = (typeof DRIVE_UPLOAD_MODES)[number];
+
+export const DRIVE_RAW_NAME_MODES = ['original', 'organized'] as const;
+export type DriveRawNameMode = (typeof DRIVE_RAW_NAME_MODES)[number];
+
+// =============================================================
 // Status do job
 // =============================================================
 export const JOB_STATUS = [
