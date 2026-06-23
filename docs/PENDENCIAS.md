@@ -32,6 +32,13 @@ o que resta é avaliação, deploy e documentação.
 | Avaliação com usuários (SUS/TAM) | trabalho futuro | ⏸️ não executada (sem deploy) |
 | Deploy de produção (Supabase/OpenRouter/GCP/Vercel) | trabalho futuro | ⏸️ pendente |
 
+### 🧹 Débito técnico (registrado 23/06/2026, durante refino do CLAUDE.md)
+
+| Item | Onde | Situação |
+|---|---|---|
+| **Conta de testes dedicada para o Claude** — não existe conta (email+senha+role) documentada pra verificações que exigem sessão autenticada; hoje testes de sessão precisam ser combinados manualmente com o usuário. Criar (idealmente uma conta isolada, fora de PII real) e registrar no `CLAUDE.md` §12. | infra / QA | ⏳ pendente |
+| **Timezone BRT não fixado no display** — `apps/web/src/lib/format.ts` (e `routes/SettingsPage.tsx`, `routes/admin/AdminDashboard.tsx`, `routes/admin/AdminModelos.tsx`) usam `toLocaleString('pt-BR')`/`toLocaleDateString` **sem** `{ timeZone: 'America/Sao_Paulo' }` → renderizam no fuso do device. Centralizar numa util `dateBRT.ts` (ainda não existe) e fixar UTC-3. Ref: `CLAUDE.md` §8. | frontend / tech-debt | ⏳ pendente |
+
 ---
 
 ## 📄 Artigo ENEGEP 2026 — Status
