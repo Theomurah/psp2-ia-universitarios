@@ -1,12 +1,195 @@
 # CLAUDE.md — Convenções para colaboração humano + IA
 
-Este documento concentra regras curtas de estilo, log e segurança que **todo
-agente IA (Claude Code, Cursor, Copilot…) deve seguir** ao mexer no repositório
-PSP2. Para visão de produto e arquitetura, ver `README.md` e `docs/`.
+Este documento concentra as regras que **todo agente IA (Claude Code, Cursor,
+Copilot…) deve seguir** ao mexer no repositório PSP2 — tanto **como o agente
+deve trabalhar** (§13 Regras de comportamento, §14 Rigor epistêmico) quanto
+**que aparência o código deve ter** (convenções §1–§12, §15–§18). Para visão de
+produto, ver `README.md` e `docs/`.
+
+> **CLAUDE.md é código, não documentação.** Revise em PR, pode regra que não
+> funciona mais, e teste mudança observando se o comportamento muda de fato.
+> Não acumular regra "by the way" sem teste de eficácia.
 
 ---
 
-## Convenção de logging
+## 1. Visão geral e stack
+
+Mini SaaS que ingere documentos acadêmicos (PDF/DOCX/PPTX/MD/imagens), sintetiza
+via LLM, organiza no Google Drive do aluno e gera system prompts + biblioteca de
+prompts. Disciplina PSP2 — UnB 2026.1. **Mercado único: Brasil/UnB** (relevante
+pra §8 timezone).
+
+| Camada | Tecnologia |
+|---|---|
+| Frontend | Vite 5 + React 19 + TypeScript 5.6 |
+| Roteamento | React Router v6 |
+| UI | CSS próprio com design tokens UnB (`apps/web/src/index.css`) — **sem Tailwind/shadcn** |
+| Forms / validação | React Hook Form + Zod 3 |
+| Estado servidor | TanStack Query (React Query) |
+| Backend | Supabase Edge Functions (Deno) |
+| Auth / DB / Storage | Supabase (**projeto único** — ver §11) |
+| LLM | OpenRouter |
+| Deploy | Vercel (front) + Supabase (back); CI em GitHub Actions |
+
+**Monorepo (npm workspaces):**
+
+```
+apps/web/        Frontend. src/{components,routes,hooks,lib,config}/ + index.css
+packages/shared/ Tipos + Zod schemas + lógica pura (sigaa, srs, import) compartilhados
+supabase/
+  functions/     Edge Functions (Deno). _shared/ = helpers (cors, log, rate-limit, validation, …)
+  migrations/    Schema SQL versionado (NNNN_snake_case.sql)
+tools/           Scripts node (geração de docs de entrega, etc.)
+docs/            PENDENCIAS.md, EXTRAS.md, schema-db.md, visao-futuro.md
+```
+
+Não há `services/`, `context/`, `pages/` ou `utils/`: a lógica de domínio vive em
+`hooks/` + `lib/`, e páginas ficam em `routes/`.
+
+---
+
+## 2. Convenções de naming
+
+| Elemento | Convenção | Exemplo |
+|---|---|---|
+| Variáveis / funções | `camelCase` | `loadJobs`, `activeProviders` |
+| Componentes React | `PascalCase` | `JobCard`, `MetricsCards` |
+| Tipos / interfaces | `PascalCase` | `JobRecord`, `type JobStatus` |
+| Constantes globais | `UPPER_SNAKE_CASE` | `STANDALONE_ROUTES`, `DIAS_SEMANA` |
+| Hooks | `use` + `camelCase` | `useJobs`, `useProfile` |
+| Arquivo de componente | `PascalCase.tsx` | `JobCard.tsx` |
+| Arquivo de hook | `useX.ts(x)` | `useJobs.ts`, `useAdminPrefs.tsx` |
+| Arquivo de rota/página | `PascalCasePage.tsx` | `DashboardPage.tsx` |
+| Arquivo de lib/util/config | `camelCase.ts` | `format.ts`, `log.ts`, `models.ts` |
+| Edge Function (pasta) | `kebab-case` | `ingest-document`, `connect-drive` |
+| Helper em `_shared` | `kebab-case.ts` | `rate-limit.ts`, `log.ts` |
+| Migration | `NNNN_snake_case.sql` | `0033_document_drive_upload_options.sql` |
+
+---
+
+## 3. Padrão de imports
+
+Ordem observada no código (de cima pra baixo), com linha em branco opcional entre grupos:
+
+1. **React e hooks** — `import { useEffect } from 'react'`
+2. **Libs externas** — `react-router-dom`, `react-hook-form`, `@hookform/resolvers`, `@tanstack/react-query`, `@supabase/supabase-js`
+3. **Workspace compartilhado** — `import { ProfileFormSchema, type ProfileForm } from '@psp2/shared'`
+4. **`lib/` e `hooks/` internos** — `from '../lib/supabase'`, `from '../hooks/useProfile'`
+5. **Componentes internos** — `from '../components/Toast'`
+6. **Tipos** — `import type { JobRecord } from '@psp2/shared'` (ou `type` inline)
+
+**Regras:**
+- Sem path aliases (`@/`) — o projeto usa caminhos relativos.
+- Usar `import type` / `type` inline para importações só-de-tipo (convenção do
+  código; **`verbatimModuleSyntax` não está ligado** no tsconfig, então não é
+  enforced — siga mesmo assim).
+- Preferir **named exports** para hooks/lib/utils. Default export é tolerado em
+  componentes de página/seção (padrão atual misto) e em lazy-loaded routes.
+- Edge Functions (Deno) importam com extensão `.ts`: `from '../_shared/log.ts'`.
+
+---
+
+## 4. Idioma e comentários (JSDoc)
+
+- **Comentários inline e de seção:** português brasileiro (pt-BR).
+- **Strings de UI:** pt-BR.
+- **Código (identificadores, mensagens de erro técnicas, eventos de log):** inglês.
+- **Header de arquivo:** recomendado um bloco JSDoc no topo de arquivos não-triviais
+  descrevendo propósito e o **porquê** (ver `lib/log.ts`, `routes/SettingsPage.tsx`
+  como gabaritos). Não é obrigatório em todo arquivo, mas todo `lib/`/`hook` com
+  lógica não-óbvia deveria ter.
+
+```ts
+/**
+ * NomeDoArquivo.ts
+ *
+ * O que faz e por que existe. Detalhes não-óbvios que um dev junior precisaria.
+ */
+```
+
+A regra de concisão de §14 vale pro **chat**, não pros comentários — esses
+explicam o "porquê" pra um dev junior (§13).
+
+---
+
+## 5. Tipagem
+
+Config em `tsconfig.base.json`: `strict: true`, `noUnusedLocals`, `noUnusedParameters`,
+`isolatedModules`, `noFallthroughCasesInSwitch`.
+
+- **Evitar `any` explícito.** Se inevitável, justificar com comentário; `Record<string, unknown>`
+  (ou `unknown` + type guard) é quase sempre melhor que `any`.
+- Variável/parâmetro não usado é **erro** de tsc — prefixar com `_` quando intencional
+  (o ESLint ignora `^_`).
+- `as Type` com moderação, só quando o TS não consegue inferir.
+- Tipos e schemas compartilhados entre front e Edge Functions vivem em
+  `@psp2/shared` — não duplicar.
+
+---
+
+## 6. Error handling
+
+**Não há Sentry** neste projeto. O par é: **log estruturado + feedback amigável ao usuário.**
+
+```ts
+import { createLogger } from '../lib/log';
+import { useToast } from '../components/Toast';
+const log = createLogger('upload');
+
+try {
+  await uploadDocument(file);
+} catch (err) {
+  log.error('upload_failed', log.fromError(err));   // fromError já sanitiza (§9)
+  toast.error('Não foi possível enviar o arquivo.'); // mensagem amigável, sem detalhe técnico
+}
+```
+
+**Regras:**
+- Nunca silenciar erro sem log (`catch {}` vazio só é tolerado quando documentado).
+- Feedback ao usuário **sempre via `useToast`** — `alert()` é proibido (já foi
+  removido do código).
+- `console.*` cru é desencorajado (use `createLogger`), mas o ESLint tem
+  `no-console: off` — as **exceções legítimas** são: `lib/supabase.ts` (guard de
+  bootstrap, evita ciclo `log.ts`→`supabase.ts`), `ErrorBoundary.tsx` e scripts
+  de `tools/`. Fora disso, use o logger.
+- Extrair mensagem com segurança: `err instanceof Error ? err.message : String(err)`.
+
+---
+
+## 7. Padrões por tipo de arquivo
+
+- **`routes/` (páginas):** uma página por arquivo, sufixo `Page`. Header JSDoc.
+  Rotas standalone (sem topbar) estão em `STANDALONE_ROUTES` no `App.tsx` — ver §16.
+- **`components/`:** funcionais (nunca classe, exceto `ErrorBoundary`). Props via
+  interface `XProps`. CSS pelas classes do design system (§16), nunca estilo solto.
+- **`hooks/`:** prefixo `use`, um por arquivo, retornam objeto/tupla nomeada.
+  Encapsulam React Query + Supabase. `createLogger('<escopo>')` no topo do módulo.
+- **`lib/`:** funções utilitárias (`format`, `upload`, `apkg`, `consents`) e o
+  cliente `supabase`. Idealmente puras; efeitos colaterais explícitos.
+- **`config/`:** catálogos estáticos (`models.ts`, `modelCapabilities.ts`).
+- **Edge Functions (`supabase/functions/<nome>/index.ts`):** Deno; helpers em
+  `_shared/`; toda função é **frontend-untrusted** (§13, §15).
+
+---
+
+## 8. Datas e timezone (BRT)
+
+O PSP2 é Brasil-only (UnB). **`America/Sao_Paulo` (UTC-3) é o timezone canônico.**
+
+- Em display, fixar o fuso: `toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', … })`.
+- Em prompt LLM, rotular a data como `(BRT, UTC-3)` — sem o rótulo o LLM raciocina
+  como UTC e erra SQL/datas entre 21h–24h BRT.
+- Não usar `getUTCHours()/getUTCDate()` como heurística "tem hora"/"dia 1" — `00:00 BRT`
+  = `03:00 UTC` gera falso positivo.
+
+> **Pendência honesta:** hoje `apps/web/src/lib/format.ts` (e alguns `routes/`)
+> usam `toLocaleString('pt-BR')` **sem** `timeZone`. É um débito conhecido — ao
+> tocar nesses pontos, fixar o fuso (idealmente centralizando numa util
+> `dateBRT.ts`, que ainda não existe).
+
+---
+
+## 9. Logging
 
 > Origem: auditoria 2026-05-26 (Agente 4 — Observabilidade, achado A8).
 
@@ -89,32 +272,229 @@ A whitelist canônica de chaves sensíveis vive em `supabase/functions/_shared/l
 
 ---
 
-## Segurança — regras de bolso
+## 10. Git — branches, commits, PR
 
-1. **Chave OpenRouter, Google Client Secret, Service Role Key** nunca em `apps/web/`.
-   Só em Edge Function ou `.env*` (não trackeado).
-2. **Toda tabela com `user_id`** precisa de RLS habilitado e policy
-   `(select auth.uid()) = user_id` por operação. Veja `0006_security_hardening.sql`
-   como gabarito.
-3. **CORS:** whitelist explícita por env (`ALLOWED_ORIGINS`), nunca `*`.
-4. **Input do aluno em prompt LLM:** sandboxar com delimitadores
-   `<<DOC>>...<</DOC>>` e remover marcadores antes de concatenar.
-5. **Storage path:** sempre prefixado por `user.id/` e checado no servidor antes
-   de gerar signed URL.
+- **`main`** — produção, sempre estável. **Nunca** commitar/pushar direto;
+  exige PR + 1 review.
+- **`dev`** — branch de integração (hoje à frente de `main`). Destino dos merges
+  de feature; é onde o código estável de dev vive. CI roda em `main` **e** `dev`.
+- **`feature/<descrição>`** ou **`fix/<descrição>`** — uma branch por tarefa,
+  criada a partir de `dev`. **Tarefa substancial** (feature, fix multi-arquivo,
+  refactor) roda numa branch própria, idealmente num **worktree isolado**
+  (`git worktree add ../psp2-<desc> -b feature/<desc> dev`, ou a isolação de
+  worktree do Claude Code). **Mudança trivial** (1 arquivo, typo, tweak em
+  doc/CLAUDE.md) vai direto no `dev` — o overhead de branch+worktree não compensa.
+- **Merge no final (automático após validação passar):** ao concluir a tarefa
+  com o pipeline de §17 passando (`npm test` + `npm run typecheck` + `npm run build`),
+  mergear a branch de volta no `dev` via merge commit (`--no-ff`, nunca squash) e
+  remover branch + worktree — **sem pedir confirmação**. Se a validação falhar,
+  **não** mergear: reportar e corrigir primeiro. `dev` → `main` só via PR revisado.
+- **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`,
+  `refactor:`, `test:`, `perf:`). Descrição em inglês ou pt-BR curta, imperativo.
+  Mensagens como `teste`, `ajustes`, `wip` são inválidas.
+- **Staging granular:** `git add <arquivo>` por nome. **Nunca** `git add .`/`-A`
+  quando o working tree tiver mudança não-relacionada — cada commit = uma intenção.
 
 ---
 
-## Estilo de código
+## 11. Acesso ao Supabase
 
-- **Linguagem da documentação e comentários:** pt-BR.
-- **Linguagem do código (identificadores, mensagens de erro técnicas):** inglês.
-- **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`).
-- **PR:** 1 review obrigatório antes de mergear na `main`. Não pushar em main direto.
-- **TypeScript:** `strict: true` (mantido em `tsconfig.base.json`); evitar `as any`.
+**Projeto único:** `psp2-ia-universitarios` (ref `bthwkwgdbtrkixajvddi`) — não há
+dois projetos.
+
+Claude Code tem acesso direto via `supabase` CLI e via MCP. Use isso para
+verificar dados/tabelas/RLS/migrations e diagnosticar **contra o banco real**, em
+vez de inferir só pelo código.
+
+**Ordem de prioridade (fonte da verdade):**
+1. **Banco real** — `supabase` CLI ou MCP (`execute_sql`, `list_tables`,
+   `get_edge_function`, `get_logs`, `get_advisors`). Preferir **CLI** por economia
+   de tokens (§13); MCP quando o CLI não estiver autenticado.
+2. Código-fonte — para intenção e contexto.
+3. Documentação — último recurso, nunca substitui verificação real.
+
+**Operações que exigem confirmação explícita** (afetam produção):
+- Deploy de Edge Function.
+- Schema que muda comportamento (`DROP`, `ALTER`, rename de coluna/tabela).
+- Mudança de RLS que altera o que o usuário vê/faz.
+- `UPDATE`/`DELETE` em tabela de config lida em runtime.
+- Qualquer migration irreversível.
+
+Leitura (`SELECT`, list, get, logs) **não** precisa de confirmação.
+
+**Regras de banco:**
+- Toda mudança de schema vai por **migration versionada** (`supabase/migrations/`,
+  hoje em `0033`) — nunca pelo dashboard.
+- Ao criar/alterar função `SECURITY DEFINER`, rodar `get_advisors security` antes
+  do push, e **revogar `EXECUTE` da trigger function no schema `public`** (lição
+  das migrations 0024→0030: trigger `SECURITY DEFINER` não deve ser chamável
+  diretamente — vira RPC com guard).
 
 ---
 
-## Estilo de UI / Design System
+## 12. Comandos de desenvolvimento
+
+```bash
+npm run dev          # Frontend (Vite). Porta 5173 (ou 5175 via .claude/launch.json)
+npm run build        # Build de todos os workspaces (tsc -b && vite build)
+npm run typecheck    # tsc -b --noEmit em todos os workspaces
+npm run lint         # ESLint (flat config) em apps/web/src
+npm test             # vitest run
+deno check supabase/functions/<nome>/index.ts   # type check de Edge Function
+
+supabase functions deploy <nome>   # deploy (exige confirmação — §11)
+```
+
+**Conta de testes:** ainda **não há** uma conta dedicada documentada para o Claude
+usar em verificações. Quando for criada, registrar aqui (email + senha + role).
+Por ora, testes que precisam de sessão devem ser combinados com o usuário.
+
+---
+
+## 13. ⭐ Regras de comportamento do Claude
+
+> A camada mais importante deste arquivo. Define **como o agente trabalha**, não
+> só como o código fica.
+
+### Como executar
+
+- **Trabalhar direto com as ferramentas — sem subagentes.** Neste projeto, **não**
+  usar `Agent`/`Task`/`Workflow` para paralelizar. Paralelizar via **múltiplos
+  tool calls numa única mensagem** (Read/Grep/Bash juntos) — mais rápido e barato.
+  (Preferência explícita e recorrente do usuário.)
+- **Read before write:** antes de modificar função/hook/serviço, buscar **todas**
+  as call sites via `grep`/Glob. Mudar assinatura sem checar quem chama = bug
+  latente. Vale também para remoção: ao limpar arquivo/função, achar todas as
+  referências e avaliar como remover sem quebrar — só então executar.
+- **Verify before claiming success:** não declarar tarefa concluída sem a
+  verificação cabível — mudança de tipo → `npm run typecheck`; UI visível → abrir
+  preview do Vite; SQL/RPC/migration → executar contra o banco (§11); lógica pura
+  → `npm test`. "Funcionar na minha cabeça" não conta.
+- **Hard attempt limit:** após **2 tentativas** falhas no mesmo erro, parar e
+  pedir contexto ao usuário em vez de continuar iterando. Loop autônomo queima
+  tokens e gera diff inútil.
+- **CLI antes de MCP:** quando dá pra fazer por CLI (`gh`, `git`, `npm`, `supabase`)
+  ou por MCP equivalente, preferir o CLI — output mais enxuto, menos tokens.
+  MCP só quando o CLI não está disponível/autenticado.
+- **Consultar memórias automáticas antes de assumir contexto:** o sistema injeta
+  só os *títulos* das memórias. Ao começar tarefa de um tópico coberto (flashcards,
+  auditoria, LGPD, edge functions, etc.), **ler o arquivo de memória completo**
+  antes de propor solução — memórias documentam decisões já tomadas.
+
+### Git autônomo (commit + push)
+
+- **Commit automático:** após concluir uma alteração de arquivo do projeto
+  (código, CLAUDE.md, docs, config), commitar automaticamente — sem pedir
+  confirmação nem esperar o usuário pedir. Conventional Commits; **staging
+  granular obrigatório** (`git add <arquivo>` por nome; quando houver mudança
+  órfã/não-relacionada no working tree, usar `git add -p` ou `git stash` pra
+  isolar — nunca varrer o que não é da tarefa atual). Reportar após o commit:
+  linhas +X/−Y, branch, hash.
+- **Push automático no `dev`:** todo commit ou merge no `dev` é pushado pro
+  remoto na sequência (`git push origin dev`), pra manter local e remoto
+  sincronizados (`dev` é compartilhado). Antes do push, `git fetch origin` +
+  integrar `origin/dev` (merge ou rebase) pra evitar non-fast-forward.
+- **Exceção (escopo do automático):** commit+push automáticos valem pro `dev` e
+  branches de tarefa (`feature/*`/`fix/*`). **Qualquer operação na `main`** —
+  commit, merge ou push — **exige confirmação explícita** do usuário (§10).
+
+### Como decidir e codar
+
+- **Convention over novelty:** se o codebase já tem um padrão (error handling,
+  fetching, naming, componentização), usar esse. Não introduzir lib/padrão novo
+  sem justificativa e aprovação. Achou duas convenções? Escolher uma das
+  existentes — nunca criar uma terceira variação híbrida.
+- **Simplicity first (regra do 3):** o mínimo de código que resolve. Sem feature
+  especulativa, abstração genérica para um único uso, ou flag "pro futuro". Não
+  criar abstração até ter 3 chamadas idênticas.
+- **Solução geral > fix hiper-específico:** identificar a *classe* do bug antes
+  de patchar o caso pontual; `grep` por casos similares e resolver na causa raiz.
+  Sinais de fix mal-feito: `if x === 'casoX'` espalhado, regra que cita nome
+  próprio de tabela/coluna/usuário, patch que não cobre nem o caso vizinho óbvio.
+- **Don't use LLM for deterministic work:** retry, validação de schema, parsing,
+  sanitização → código TypeScript, não prompt LLM. Reservar LLM pra linguagem
+  natural / raciocínio. Toda chamada LLM evitável é custo + latência + não-determinismo.
+- **Edge Functions são frontend-untrusted:** validar input (Zod via `_shared/validation.ts`),
+  checar ownership via JWT, nunca confiar em dado do front — mesmo com RLS ativa (§15).
+- **Comentar o "porquê":** ao adicionar código, incluir comentário suficiente pra
+  um dev junior entender a lógica e o contexto — não só o "quê".
+
+### Observar fora do escopo
+
+- Durante qualquer execução, observar o código ao redor em busca de bug, lacuna
+  ou risco — mesmo fora do escopo. Se achar algo relevante, reportar ao final numa
+  seção curta **"⚠️ Observado fora do escopo"**, sem interromper a tarefa principal.
+
+### Manter o CLAUDE.md vivo
+
+- Ao final de execução, avaliar se vale adicionar regra. **Adicionar quando:** (a)
+  o usuário corrigiu explicitamente um comportamento; (b) descoberta de padrão
+  arquitetural não-óbvio que afeta próximas sessões; (c) bug cuja causa raiz foi
+  convenção não-óbvia. **Não adicionar:** preferência trivial, observação pontual,
+  regra que cobre 1 caso isolado.
+
+### Comunicação
+
+- **Síntese inteligente:** comprimir ao máximo sem perder informação crucial.
+  Começar pela resposta direta — sem preâmbulo ("Boa pergunta!"), sem closer
+  ("Espero ter ajudado"), sem repetir o pedido. Detalhe secundário vira menção de
+  1 linha com oferta de aprofundar, não seção inteira. Respostas no chat em **pt-BR**.
+- **Sempre fechar com próximos passos:** ao concluir/avançar uma tarefa, indicar o
+  que falta ou a decisão pendente do usuário (1 linha ou 2-3 bullets). Se não há
+  nada pendente, dizer "nada pendente".
+- **Se não conseguir fazer algo** (quebra, limitação técnica, qualquer motivo),
+  avisar honestamente — não fingir sucesso.
+
+---
+
+## 14. ⭐ Postura e rigor epistêmico
+
+- **Zero invenção:** nunca chutar nome de função, assinatura, coluna de tabela,
+  RPC, hook, tipo ou comportamento de lib. Não souber? **Verificar antes** —
+  código-fonte, Supabase (§11), ou perguntar. Agente que inventa API gera bug que
+  vaza pra produção.
+- **Calibração de confiança explícita:** diferenciar fato verificado (li no
+  código/banco), dedução lógica (segue de X), e especulação (acho que). Não fingir
+  autoridade sem base.
+- **Ambiguidade = perguntar antes de executar.** Pedido confuso, contraditório ou
+  com mais de uma interpretação plausível: alinhar antes, não escolher em silêncio.
+- **Discordar com fundamento:** antes de discordar de uma decisão do usuário
+  (arquitetura, stack, padrão), reconstruir o argumento dele na forma mais forte
+  (steel-manning) e só então apresentar o contraponto, com trade-offs concretos —
+  não opinião genérica. Não aceitar a primeira ideia se houver alternativa melhor,
+  mas justificar em 1-2 linhas.
+- **Postura:** par técnico do desenvolvedor, não assistente subserviente. Direto,
+  sem validação emocional decorativa.
+
+---
+
+## 15. Critérios de segurança (checklist antes de PR)
+
+> Regras de bolso. Cada item fechou (ou previne) um vetor real — ignorar =
+> reintroduzir vulnerabilidade. Detalhe de padrões em `0006_security_hardening.sql`
+> (gabarito de RLS) e na auditoria 2026-06-10 (`Entregas/Auditoria-2026-06-10/`).
+
+- **Toca tabela com `user_id`?** → RLS habilitado + policy `(select auth.uid()) = user_id`
+  por operação. Filtro client-side **não conta**.
+- **Toca coluna privilegiada** (`profiles.role`, limites, flags)? → além da RLS,
+  **trigger `BEFORE UPDATE`** bloqueando a coluna. (Achado **crítico** da auditoria
+  2026-06-10: escalada a admin via `UPDATE` direto em `profiles` — não repetir.)
+- **Nova RPC `SECURITY DEFINER`?** → guard no início do body
+  (`IF auth.uid() <> p_target AND NOT is_admin() THEN RAISE EXCEPTION`), `get_advisors
+  security` antes do push, e revogar `EXECUTE` se for trigger function (§11).
+- **Nova Edge Function?** → nesta ordem: CORS por whitelist (`_shared/cors.ts` +
+  env `ALLOWED_ORIGINS`, **nunca `*`**) → JWT/Bearer → `Zod.parse(body)`
+  (`_shared/validation.ts`) → rate-limit (`_shared/rate-limit.ts`) → lógica.
+- **Aceita upload?** → checar tipo real (não confiar em `file.type`), storage path
+  sempre prefixado por `user.id/` e validado no servidor antes de gerar signed URL.
+- **Input do aluno em prompt LLM?** → sandboxar com delimitadores `<<DOC>>…<</DOC>>`
+  e remover os marcadores do input antes de concatenar.
+- **Segredos** (chave OpenRouter, Google Client Secret, Service Role Key) → **nunca**
+  em `apps/web/`. Só em Edge Function ou `.env*` não-trackeado.
+
+---
+
+## 16. Estilo de UI / Design System
 
 > Origem: incidente 2026-05-27 — primeira versão do `/admin` foi feita com
 > sidebar escura, paleta indigo (`#4f46e5`) e classes próprias (`admin-table`,
@@ -219,37 +599,18 @@ em componentes/CSS novos. Os tokens vivem em `apps/web/src/index.css` no `:root`
 ### Responsividade (mobile-first nas correções)
 
 > Origem: 2026-06-11 — UI tornada reativa pra todas as telas.
-> Revisão: 2026-06-23 — auditoria exaustiva de overflow (breakpoint da topbar +
-> quebra de conteúdo longo).
 
-1. **Topbar mobile/tablet (≤ 1024px):** os links viram um dropdown sob o botão
-   hambúrguer (`.topbar-burger`); acima disso seguem inline. A topbar **nunca**
+1. **Topbar mobile (≤ 768px):** os links viram um dropdown sob o botão
+   hambúrguer (`.topbar-burger`); em desktop seguem inline. A topbar **nunca**
    é escondida (regra acima continua valendo) — só os links colapsam. Ao
    adicionar um link novo na topbar, ele entra automaticamente no menu mobile.
-   O breakpoint é **1024px** (não 768): a topbar completa — logo + 6 links +
-   email + avatar — precisa de ~1150px pra caber inline, então colapsar só ≤768
-   deixava tablets/laptops pequenos transbordando. Há uma faixa intermediária
-   (1025–1200px) que mostra os links inline mas compactos (esconde subtítulo do
-   logo + email, aperta padding); o layout completo (com email + subtítulo) só
-   ≥ 1201px.
 2. **Grids fluidos:** use `repeat(auto-fill/fit, minmax(min(Npx, 100%), 1fr))`,
    **nunca** `minmax(Npx, 1fr)` puro — sem o `min()`, telas mais estreitas que
    `N` forçam scroll horizontal.
 3. **Tabelas largas:** o wrapper (`.atividade-table-wrapper`) usa
-   `overflow-x: auto` pra rolar no mobile em vez de cortar colunas. Tabela de
-   markdown (`.markdown-rendered table`) vira `display:block; overflow-x:auto`
-   pelo mesmo motivo (não tem wrapper).
+   `overflow-x: auto` pra rolar no mobile em vez de cortar colunas.
 4. Grupos de pills/ações que podem estourar (`.prompts-filter`, `.privacy-action`,
    `.admin-subnav`) levam `flex-wrap: wrap`.
-5. **Conteúdo longo (nome de baralho/documento, título de prompt, URL, código,
-   filename):** título/texto que recebe dado do usuário leva `overflow-wrap:
-   break-word`. **Atenção ao combo flex/grid:** um item flex/grid tem
-   `min-width: auto` por padrão, então cresce até o min-content (a palavra
-   inteira) e o `overflow-wrap` não age — é preciso pôr `min-width: 0` no item
-   (ex: `.job-card`, `.deck-card`, `.dashboard-header > *`, `.admin-model-row > *`).
-   Quando o próprio elemento é um container flex (ex: `.dashboard-header h1`),
-   use `overflow-wrap: anywhere` (não `break-word`): só `anywhere` reduz o
-   min-content do flex item anônimo de texto.
 
 ### Tema claro / escuro
 
@@ -266,7 +627,7 @@ em componentes/CSS novos. Os tokens vivem em `apps/web/src/index.css` no `:root`
 
 ---
 
-## Pipeline de testes mínimo antes de PR
+## 17. Pipeline de testes mínimo antes de PR
 
 ```bash
 npm test          # 140+ testes, ~1.7s
@@ -283,7 +644,7 @@ deno check supabase/functions/<nome>/index.ts
 
 ---
 
-## Roadmap operacional (pg_cron)
+## 18. Roadmap operacional (pg_cron)
 
 > Origem: auditoria 2026-05-26 (Agente 6 — Banco, achado F2).
 
