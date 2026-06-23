@@ -427,6 +427,32 @@ export function useImportDeck() {
 }
 
 // =============================================================
+// Geração por IA (Fase 6) — invoca a Edge Function generate-flashcards
+// =============================================================
+
+export interface GenerateArgs {
+  text: string;
+  context: string;
+  count: number;
+}
+
+/** Gera cartões (frente/verso em LaTeX) a partir de um material + contexto. */
+export function useGenerateFlashcards() {
+  return useMutation({
+    mutationFn: async ({ text, context, count }: GenerateArgs): Promise<ParsedCard[]> => {
+      const { data, error } = await supabase.functions.invoke<{ ok: boolean; cards: ParsedCard[] }>(
+        'generate-flashcards',
+        { body: { text, context, count } },
+      );
+      if (error) throw error;
+      if (!data?.ok || !Array.isArray(data.cards)) throw new Error('generation_failed');
+      return data.cards;
+    },
+    onError: (err) => log.error('generate_failed', log.fromError(err)),
+  });
+}
+
+// =============================================================
 // Análises (Fase 5) — agrega flashcard_reviews por tópico e por cartão
 // =============================================================
 

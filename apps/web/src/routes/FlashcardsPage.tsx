@@ -69,6 +69,9 @@ export default function FlashcardsPage() {
           <button type="button" className="primary" onClick={() => setCreating((v) => !v)}>
             Novo baralho
           </button>
+          <Link to="/flashcards/generate" className="ghost" style={{ textDecoration: 'none' }}>
+            Gerar com IA
+          </Link>
           <Link to="/flashcards/import" className="ghost" style={{ textDecoration: 'none' }}>
             Importar
           </Link>

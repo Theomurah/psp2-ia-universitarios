@@ -28,6 +28,7 @@ const FlashcardStudyPage = lazy(() => import('./routes/FlashcardStudyPage'));
 const FlashcardDeckPage = lazy(() => import('./routes/FlashcardDeckPage'));
 const FlashcardImportPage = lazy(() => import('./routes/FlashcardImportPage'));
 const FlashcardAnalyticsPage = lazy(() => import('./routes/FlashcardAnalyticsPage'));
+const FlashcardGeneratePage = lazy(() => import('./routes/FlashcardGeneratePage'));
 const AdminLayout = lazy(() => import('./routes/admin/AdminLayout'));
 const AdminDashboard = lazy(() => import('./routes/admin/AdminDashboard'));
 const AdminPrompts = lazy(() => import('./routes/admin/AdminPrompts'));
@@ -286,6 +287,14 @@ export default function App() {
                   element={
                     <RequireAuth requireOnboarding>
                       <FlashcardAnalyticsPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/flashcards/generate"
+                  element={
+                    <RequireAuth requireOnboarding>
+                      <FlashcardGeneratePage />
                     </RequireAuth>
                   }
                 />
