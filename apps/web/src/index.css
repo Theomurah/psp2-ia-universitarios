@@ -148,10 +148,15 @@ h2 { font-size: 1.25rem; }
 h3 { font-size: 1.05rem; }
 
 .container {
-  max-width: 1080px;
+  max-width: 1240px;
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
 }
+/* Páginas de grade densas (cockpit) preenchem mais a tela em monitores largos.
+   Cap em 1480px: enche bem 1440/1536/1920 sem esticar cards leves a ponto de
+   virar espaço-em-branco interno (whitespace 2026-06-24). Leitura/formulário
+   (legal 760, settings 720) têm cap próprio mais estreito que sobrepõe este. */
+.container.dashboard { max-width: 1480px; }
 @media (max-width: 640px) {
   .container { padding: 1.25rem 1rem 3rem; }
 }
