@@ -82,9 +82,9 @@ export default function FlashcardImportPage() {
     importDeck.mutate(
       { name: name.trim() || parsed.name, source: parsed.source, cards: parsed.cards },
       {
-        onSuccess: ({ deck, count }) => {
+        onSuccess: ({ deckId, count }) => {
           toast.success(`${count} ${count === 1 ? 'cartão importado' : 'cartões importados'}`, 'Pronto pra estudar.');
-          navigate(`/flashcards/decks/${deck.id}`);
+          navigate(`/flashcards/decks/${deckId}`);
         },
         onError: () => toast.error('Não deu pra importar o baralho.'),
       },

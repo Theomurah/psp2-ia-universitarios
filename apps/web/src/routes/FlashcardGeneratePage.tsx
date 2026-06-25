@@ -58,9 +58,9 @@ export default function FlashcardGeneratePage() {
     importDeck.mutate(
       { name: deckName.trim() || 'Cartões gerados por IA', source: 'ai', cards },
       {
-        onSuccess: ({ deck, count: n }) => {
+        onSuccess: ({ deckId, count: n }) => {
           toast.success(`${n} cartões salvos`, 'Pronto pra estudar.');
-          navigate(`/flashcards/decks/${deck.id}`);
+          navigate(`/flashcards/decks/${deckId}`);
         },
         onError: () => toast.error('Não deu pra salvar os cartões.'),
       },

@@ -121,39 +121,30 @@ export function useSubmitReview() {
       const prevScheduling = prevState ? recordToScheduling(prevState) : initialState(ts);
       const next = review(prevScheduling, rating, ts);
 
-      const { error: stErr } = await supabase.from('flashcard_states').upsert(
-        {
-          card_id: card.id,
-          user_id: card.user_id,
-          state: next.state,
-          ease_factor: next.ease,
-          interval_days: next.intervalDays,
-          repetitions: next.repetitions,
-          lapses: next.lapses,
-          learning_step: next.learningStep,
-          due_at: new Date(next.dueAt).toISOString(),
-          last_reviewed_at: new Date(ts).toISOString(),
-        },
-        { onConflict: 'card_id' },
-      );
-      if (stErr) throw stErr;
-
-      const { error: rvErr } = await supabase.from('flashcard_reviews').insert({
-        card_id: card.id,
-        user_id: card.user_id,
-        deck_id: card.deck_id,
-        topico: card.topico,
-        rating,
-        elapsed_ms: elapsedMs,
-        prev_interval_days: prevScheduling.intervalDays,
-        scheduled_interval_days: next.intervalDays,
-        prev_ease: prevScheduling.ease,
-        new_ease: next.ease,
+      // Atômico: upsert do estado SRS + insert do review numa transação só
+      // (RPC record_flashcard_review, migration 0034). deck_id/topico são
+      // resolvidos no servidor a partir do próprio cartão.
+      const { error } = await supabase.rpc('record_flashcard_review', {
+        p_card_id: card.id,
+        p_rating: rating,
+        p_elapsed_ms: elapsedMs,
+        p_state: next.state,
+        p_ease: next.ease,
+        p_interval_days: next.intervalDays,
+        p_repetitions: next.repetitions,
+        p_lapses: next.lapses,
+        p_learning_step: next.learningStep,
+        p_due_at: new Date(next.dueAt).toISOString(),
+        p_prev_interval_days: prevScheduling.intervalDays,
+        p_prev_ease: prevScheduling.ease,
       });
-      if (rvErr) throw rvErr;
+      if (error) throw error;
 
       return next;
     },
+    // A UI avança otimista (não espera), então uma falha de rede transitória
+    // perderia a revisão — retry cobre isso. A escrita em si já é atômica (RPC).
+    retry: 2,
     onError: (err) => log.error('review_failed', log.fromError(err)),
     onSuccess: () => {
       // Não invalida deck-cards durante a sessão (a fila é snapshot local);
@@ -224,27 +215,17 @@ const SAMPLE_CARDS: Array<Pick<Flashcard, 'front' | 'back' | 'tags' | 'topico'>>
 export function useCreateSampleDeck() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<FlashcardDeck> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('not_authenticated');
-
-      const { data: deck, error: deckErr } = await supabase
-        .from('flashcard_decks')
-        .insert({
-          user_id: user.id,
-          name: 'Exemplo — Cálculo & Física',
-          description: 'Baralho de demonstração com fórmulas em LaTeX.',
-          source: 'manual',
-        })
-        .select()
-        .single();
-      if (deckErr || !deck) throw deckErr ?? new Error('deck_insert_failed');
-
-      const rows = SAMPLE_CARDS.map((c) => ({ ...c, deck_id: deck.id, user_id: user.id }));
-      const { error: cardsErr } = await supabase.from('flashcards').insert(rows);
-      if (cardsErr) throw cardsErr;
-
-      return deck as FlashcardDeck;
+    mutationFn: async (): Promise<{ deckId: string; count: number }> => {
+      // Mesma RPC transacional do import (0034). A RPC não recebe description —
+      // o baralho de exemplo dispensa.
+      const { data, error } = await supabase.rpc('import_flashcards', {
+        p_name: 'Exemplo — Cálculo & Física',
+        p_source: 'manual',
+        p_cards: SAMPLE_CARDS,
+      });
+      if (error) throw error;
+      const res = data as { deck_id: string; count: number };
+      return { deckId: res.deck_id, count: res.count };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['flashcards'] }),
     onError: (err) => log.error('sample_deck_failed', log.fromError(err)),
@@ -382,7 +363,7 @@ export function useDeleteCard() {
 }
 
 // =============================================================
-// Importação (Fase 4) — cria baralho + insere cartões em lotes
+// Importação (Fase 4) — cria baralho + cartões numa transação (RPC 0034)
 // =============================================================
 
 export interface ImportDeckArgs {
@@ -391,35 +372,20 @@ export interface ImportDeckArgs {
   cards: ParsedCard[];
 }
 
-const IMPORT_BATCH = 500;
-
 export function useImportDeck() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ name, source, cards }: ImportDeckArgs): Promise<{ deck: FlashcardDeck; count: number }> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('not_authenticated');
-
-      const { data: deck, error: deckErr } = await supabase
-        .from('flashcard_decks')
-        .insert({ user_id: user.id, name, source })
-        .select()
-        .single();
-      if (deckErr || !deck) throw deckErr ?? new Error('deck_insert_failed');
-
-      const rows = cards.map((c) => ({
-        deck_id: deck.id,
-        user_id: user.id,
-        front: c.front,
-        back: c.back,
-        tags: c.tags,
-        topico: c.topico,
-      }));
-      for (let i = 0; i < rows.length; i += IMPORT_BATCH) {
-        const { error } = await supabase.from('flashcards').insert(rows.slice(i, i + IMPORT_BATCH));
-        if (error) throw error;
-      }
-      return { deck: deck as FlashcardDeck, count: rows.length };
+    // Cria o baralho + todos os cartões numa transação só (RPC import_flashcards,
+    // migration 0034) — sem risco de baralho parcial se uma escrita falhar.
+    mutationFn: async ({ name, source, cards }: ImportDeckArgs): Promise<{ deckId: string; count: number }> => {
+      const { data, error } = await supabase.rpc('import_flashcards', {
+        p_name: name,
+        p_source: source,
+        p_cards: cards,
+      });
+      if (error) throw error;
+      const res = data as { deck_id: string; count: number };
+      return { deckId: res.deck_id, count: res.count };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['flashcards'] }),
     onError: (err) => log.error('import_deck_failed', log.fromError(err)),
