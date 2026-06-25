@@ -4,15 +4,14 @@
  * Cobre os 5 formatos do MVP:
  * - PDF (pdf-parse via npm:)
  * - DOCX (mammoth via npm:)
- * - PPTX (officeparser via npm:, com polyfill node:buffer)
+ * - PPTX (descompacta o zip com jszip + extrai o texto do XML dos slides)
  * - MD (leitura nativa)
  * - Imagens (OCR multimodal via VisionProvider — Claude ou Gemini)
  */
 
 import pdfParse from 'npm:pdf-parse@1.1.1';
 import mammoth from 'npm:mammoth@1.8.0';
-import officeparser from 'npm:officeparser@4.0.5';
-import { Buffer } from 'node:buffer';
+import JSZip from 'npm:jszip@3.10.1';
 
 import type { FormatoDocumento } from '../../../packages/shared/src/constants.ts';
 import { getVisionProvider, VisionError } from './vision/index.ts';
@@ -104,10 +103,26 @@ export async function parseDocx(buffer: Uint8Array): Promise<ParseResult> {
 // =============================================================
 export async function parsePptx(buffer: Uint8Array): Promise<ParseResult> {
   try {
-    // officeparser usa node:buffer; polyfill abaixo.
-    const nodeBuf = Buffer.from(buffer);
-    const text: string = await officeparser.parseOfficeAsync(nodeBuf);
-    const cleaned = text.trim();
+    // .pptx é um zip Open XML. O officeparser (usado antes) descompactava em
+    // disco temporário e quebrava no runtime do edge — jogava um erro sem
+    // `.message`, virando "Falha no parsing de PPTX: undefined". Aqui
+    // descompacta IN-MEMORY com jszip e lê o texto dos slides direto do XML.
+    const zip = await JSZip.loadAsync(buffer);
+    const slidePaths = Object.keys(zip.files)
+      .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
+      .sort((a, b) => slideNumber(a) - slideNumber(b));
+
+    if (slidePaths.length === 0) {
+      throw new Error('nenhum slide encontrado (ppt/slides/slideN.xml) — arquivo não parece um .pptx válido');
+    }
+
+    const parts: string[] = [];
+    for (const path of slidePaths) {
+      const xml = await zip.files[path].async('string');
+      const text = pptxTextFromSlideXml(xml);
+      if (text) parts.push(text);
+    }
+    const cleaned = parts.join('\n\n').trim();
 
     const warnings: string[] = [];
     if (cleaned.length < 100) {
@@ -118,13 +133,46 @@ export async function parsePptx(buffer: Uint8Array): Promise<ParseResult> {
       texto: cleaned,
       metadata: {
         chars: cleaned.length,
+        paginas: slidePaths.length,
         formato: 'pptx',
         warnings,
       },
     };
   } catch (err) {
-    throw new ParseError(`Falha no parsing de PPTX: ${(err as Error).message}`, 'pptx', err);
+    // Surface robusto: throw não-Error (oficeparser/jszip) não vira `undefined`.
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new ParseError(`Falha no parsing de PPTX: ${msg}`, 'pptx', err);
   }
+}
+
+/** Ordena slideN.xml pelo número N (slide2 depois de slide1, não lexicográfico). */
+function slideNumber(path: string): number {
+  const m = path.match(/slide(\d+)\.xml$/);
+  return m ? Number(m[1]) : 0;
+}
+
+/**
+ * Extrai o texto visível de um slide a partir do seu XML: concatena os runs
+ * `<a:t>…</a:t>` (texto dos shapes), decodificando entidades XML. Exportada
+ * pra teste — é a parte com risco; o jszip é lib madura.
+ */
+export function pptxTextFromSlideXml(xml: string): string {
+  const runs = xml.match(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g) ?? [];
+  return runs
+    .map((r) => r.replace(/<a:t[^>]*>([\s\S]*?)<\/a:t>/, '$1'))
+    .map(decodeXmlEntities)
+    .join(' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
 }
 
 // =============================================================
