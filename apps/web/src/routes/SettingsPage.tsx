@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ProfileFormSchema, type ProfileForm, DIAS_SEMANA } from '@psp2/shared';
@@ -54,6 +54,7 @@ export default function SettingsPage() {
   const updateProfile = useUpdateProfile();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const finishDrive = useFinishDriveConnection();
   // Guard contra dupla execução do effect (StrictMode em dev monta 2x).
   const driveCallbackHandled = useRef(false);
@@ -176,14 +177,24 @@ export default function SettingsPage() {
     // submissão implícita do perfil (auditoria 2026-06-10, WEB-ROUTES-03).
     <div className="container">
       <form className="settings" onSubmit={handleSubmit(onSubmit, onInvalid)}>
-      <header>
-        <h1>Configurações</h1>
-        <p className="hint">
-          Esses dados ajudam o sistema a classificar seus documentos automaticamente
-          e a organizar tudo no seu Drive por semestre/matéria.
-        </p>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+        <div>
+          <h1>Configurações</h1>
+          <p className="hint">
+            Esses dados ajudam o sistema a classificar seus documentos automaticamente
+            e a organizar tudo no seu Drive por semestre/matéria.
+          </p>
+        </div>
+        {/* Reabre o wizard de onboarding (pré-preenchido com o perfil atual). A rota
+            /onboarding não exige requireOnboarding, então perfil completo não é
+            redirecionado de volta — o aluno pode refazer a configuração passo a passo. */}
+        <button type="button" className="ghost" onClick={() => navigate('/onboarding')}>
+          ↻ Refazer configuração inicial
+        </button>
       </header>
 
+      <div className="settings-cols">
+        <div className="settings-col">
       <section className="settings-section">
         <h2>Perfil</h2>
         <label className="field">
@@ -307,7 +318,9 @@ export default function SettingsPage() {
           + Adicionar matéria
         </button>
       </section>
+        </div>
 
+        <div className="settings-col">
       <section className="settings-section">
         <h2>Integrações</h2>
         <p className="hint" style={{ marginTop: '-0.5rem' }}>
@@ -354,6 +367,8 @@ export default function SettingsPage() {
           ))}
         </div>
       </section>
+        </div>
+      </div>
 
       <div className="actions-row">
         <button type="submit" className="primary" disabled={isSubmitting || !isDirty}>
@@ -370,9 +385,11 @@ export default function SettingsPage() {
         aria-label="Outras configurações"
         onSubmit={(e) => e.preventDefault()}
       >
-        <SystemPromptSection />
+        <div className="settings-cols">
+          <SystemPromptSection />
 
-        <PrivacySection />
+          <PrivacySection />
+        </div>
       </form>
     </div>
   );
