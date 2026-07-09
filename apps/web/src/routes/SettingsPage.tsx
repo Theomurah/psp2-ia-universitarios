@@ -172,12 +172,15 @@ export default function SettingsPage() {
   }
 
   return (
-    // O <form> do perfil NÃO envolve mais SystemPromptSection/PrivacySection:
-    // Enter num input dessas seções (ex: confirmação "EXCLUIR") disparava a
-    // submissão implícita do perfil (auditoria 2026-06-10, WEB-ROUTES-03).
+    // Duas colunas independentes, cada uma um <form> à parte:
+    //  · Esquerda: Perfil + Matérias + Integrações — este form TEM submit ("Salvar").
+    //    Integrações só tem botões (type="button"), sem input que dispare submit por
+    //    Enter, então mora dentro do form do perfil sem risco. Fica à esquerda (larga)
+    //    porque na coluna estreita os cards empilhavam em 3 linhas e desequilibravam.
+    //  · Direita: Prompt + Privacidade — form SEM submit, pra que Enter num input
+    //    (ex: confirmação "EXCLUIR") nunca dispare o save do perfil (WEB-ROUTES-03).
     <div className="container">
-      <form className="settings" onSubmit={handleSubmit(onSubmit, onInvalid)}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+      <header className="dashboard-header">
         <div>
           <h1>Configurações</h1>
           <p className="hint">
@@ -193,8 +196,9 @@ export default function SettingsPage() {
         </button>
       </header>
 
-      <div className="settings-cols">
-        <div className="settings-col">
+      <div className="settings-grid">
+        {/* Coluna principal — dados do perfil (único form com submit) */}
+        <form className="settings" onSubmit={handleSubmit(onSubmit, onInvalid)}>
       <section className="settings-section">
         <h2>Perfil</h2>
         <label className="field">
@@ -318,9 +322,7 @@ export default function SettingsPage() {
           + Adicionar matéria
         </button>
       </section>
-        </div>
 
-        <div className="settings-col">
       <section className="settings-section">
         <h2>Integrações</h2>
         <p className="hint" style={{ marginTop: '-0.5rem' }}>
@@ -367,30 +369,22 @@ export default function SettingsPage() {
           ))}
         </div>
       </section>
-        </div>
-      </div>
 
       <div className="actions-row">
         <button type="submit" className="primary" disabled={isSubmitting || !isDirty}>
           {isSubmitting ? 'Salvando…' : 'Salvar alterações'}
         </button>
       </div>
-      </form>
+        </form>
 
-      {/* Form separado e sem submit: mantém o layout de `form.settings` do CSS
-          e garante que Enter aqui dentro nunca salva o perfil. */}
-      <form
-        className="settings"
-        style={{ marginTop: '1.25rem' }}
-        aria-label="Outras configurações"
-        onSubmit={(e) => e.preventDefault()}
-      >
-        <div className="settings-cols">
-          <SystemPromptSection />
+        {/* Coluna lateral — dados que não fazem parte do perfil; form SEM submit pra
+            que Enter (ex: confirmação "EXCLUIR") nunca dispare o save do perfil. */}
+        <form className="settings" aria-label="Outras configurações" onSubmit={(e) => e.preventDefault()}>
+      <SystemPromptSection />
 
-          <PrivacySection />
-        </div>
-      </form>
+      <PrivacySection />
+        </form>
+      </div>
     </div>
   );
 }

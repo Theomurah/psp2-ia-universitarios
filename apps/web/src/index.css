@@ -1096,7 +1096,24 @@ form.settings {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  max-width: 720px;
+}
+/* Página de configurações em 2 colunas pra preencher telas largas — antes o form
+   ficava preso a 720px encostado à esquerda, deixando metade da tela vazia
+   (feedback 2026-06-25). Cada coluna é um <form> à parte (ver SettingsPage):
+   esquerda = Perfil + Matérias (com "Salvar"); direita = Integrações + Prompt +
+   Privacidade. Assim as duas colunas ficam com altura parecida em vez de uma
+   curta com botão flutuando no vazio. Em ≤900px empilha numa coluna só.
+   `align-items: start` evita a coluna curta esticar junto com a alta. */
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+/* Os <form> são os itens do grid; min-width:0 deixa conteúdo largo encolher. */
+.settings-grid > form.settings { margin: 0; min-width: 0; }
+@media (min-width: 900px) {
+  .settings-grid { grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); }
 }
 form.settings .settings-section {
   background: var(--bg-elevated);
