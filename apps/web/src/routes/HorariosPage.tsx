@@ -16,6 +16,7 @@ import ImportSigaaModal from '../components/ImportSigaaModal';
 import { useProfile, useUpdateProfile, MissingCursoColumnError } from '../hooks/useProfile';
 import { useToast } from '../components/Toast';
 import { colorForMateria } from '../lib/materiaColor';
+import { mergeMaterias, sigaaMateriasToPerfil } from '../lib/materias';
 
 const DIA_LABEL: Record<string, string> = {
   seg: 'Seg', ter: 'Ter', qua: 'Qua', qui: 'Qui', sex: 'Sex', sab: 'Sáb',
@@ -39,29 +40,6 @@ function summarizeHorarios(m: MateriaPerfil): string | null {
     .join(' · ');
 }
 
-function mergeMaterias(atuais: MateriaPerfil[], importadas: MateriaPerfil[]): MateriaPerfil[] {
-  const byCode = new Map<string, MateriaPerfil>();
-  for (const m of atuais) byCode.set(m.code.toUpperCase(), { ...m });
-  for (const imp of importadas) {
-    const key = imp.code.toUpperCase();
-    const existing = byCode.get(key);
-    if (existing) {
-      byCode.set(key, {
-        ...existing,
-        nome: imp.nome || existing.nome,
-        horarios: imp.horarios && imp.horarios.length > 0 ? imp.horarios : existing.horarios,
-        turma: imp.turma ?? existing.turma,
-        professor: imp.professor ?? existing.professor,
-        local: imp.local ?? existing.local,
-        codigo_horario_sigaa: imp.codigo_horario_sigaa ?? existing.codigo_horario_sigaa,
-      });
-    } else {
-      byCode.set(key, imp);
-    }
-  }
-  return Array.from(byCode.values());
-}
-
 export default function HorariosPage() {
   const { data: profile, isLoading } = useProfile();
   const updateProfile = useUpdateProfile();
@@ -82,15 +60,7 @@ export default function HorariosPage() {
 
   const handleImportConfirm = async (parsed: SigaaAtestado) => {
     if (!profile) return;
-    const importadas: MateriaPerfil[] = parsed.materias.map((m) => ({
-      code: m.code,
-      nome: m.nome,
-      horarios: m.horarios,
-      turma: m.turma ?? undefined,
-      professor: m.professor ?? undefined,
-      local: m.local ?? undefined,
-      codigo_horario_sigaa: m.codigo_horario_sigaa ?? undefined,
-    }));
+    const importadas = sigaaMateriasToPerfil(parsed);
     const merged = mergeMaterias(materias, importadas);
     try {
       await updateProfile.mutateAsync({

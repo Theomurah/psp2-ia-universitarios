@@ -16,11 +16,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ProfileFormSchema, type ProfileForm, DIAS_SEMANA } from '@psp2/shared';
+import { ProfileFormSchema, type ProfileForm, type SigaaAtestado, DIAS_SEMANA } from '@psp2/shared';
 import { useProfile, useUpdateProfile, MissingCursoColumnError } from '../hooks/useProfile';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../components/Toast';
+import ImportSigaaModal from '../components/ImportSigaaModal';
 import UnbLogo from '../components/UnbLogo';
+import { mergeMaterias, sigaaMateriasToPerfil } from '../lib/materias';
 
 const DIA_LABEL: Record<string, string> = {
   seg: 'Segunda',
@@ -287,7 +289,9 @@ function StepCourse({ form }: { form: UseFormReturn<ProfileForm> }) {
 }
 
 function StepMaterias({ form }: { form: UseFormReturn<ProfileForm> }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'materias' });
+  const { fields, append, remove, replace } = useFieldArray({ control: form.control, name: 'materias' });
+  const toast = useToast();
+  const [sigaaOpen, setSigaaOpen] = useState(false);
 
   // Auto-converte o code: UPPERCASE + remove caracteres inválidos enquanto digita.
   // Esse `onChange` é chamado depois do `onChange` do react-hook-form, então o valor
@@ -300,6 +304,23 @@ function StepMaterias({ form }: { form: UseFormReturn<ProfileForm> }) {
     }
   };
 
+  // Import SIGAA: mescla as matérias do atestado nas do form (não grava no banco —
+  // o onboarding só persiste ao concluir). Descarta as linhas em branco atuais e
+  // preenche curso/semestre se ainda vazios (sem sobrescrever o que o aluno digitou).
+  const handleImportConfirm = (parsed: SigaaAtestado) => {
+    const atuais = (form.getValues('materias') ?? []).filter((m) => !isMateriaEmpty(m));
+    const merged = mergeMaterias(atuais, sigaaMateriasToPerfil(parsed));
+    replace(merged);
+    if (parsed.curso && !form.getValues('curso')?.trim()) {
+      form.setValue('curso', parsed.curso, { shouldDirty: true });
+    }
+    if (parsed.semestre && !/^\d{4}\.\d$/.test(form.getValues('semestre_atual') ?? '')) {
+      form.setValue('semestre_atual', parsed.semestre, { shouldDirty: true });
+    }
+    setSigaaOpen(false);
+    toast.success('Matérias importadas', `${merged.length} matéria(s) preenchida(s) a partir do atestado.`);
+  };
+
   return (
     <>
       <h1>Suas matérias</h1>
@@ -308,6 +329,12 @@ function StepMaterias({ form }: { form: UseFormReturn<ProfileForm> }) {
         UPPERCASE, sem espaços (ex: <code>FISICA3</code>, <code>CALC3</code>).
       </p>
       <div className="onboarding-body">
+        <button type="button" className="primary" onClick={() => setSigaaOpen(true)}>
+          📄 Importar do SIGAA
+        </button>
+        <p className="hint" style={{ margin: '-0.4rem 0 0', textAlign: 'center', fontSize: '0.85rem' }}>
+          Envie o atestado de matrícula e preenchemos código, nome e horários. Ou adicione manualmente:
+        </p>
         {fields.map((field, idx) => {
           const codeError = form.formState.errors.materias?.[idx]?.code?.message;
           const nomeError = form.formState.errors.materias?.[idx]?.nome?.message;
@@ -354,6 +381,12 @@ function StepMaterias({ form }: { form: UseFormReturn<ProfileForm> }) {
           + Adicionar matéria
         </button>
       </div>
+
+      <ImportSigaaModal
+        open={sigaaOpen}
+        onClose={() => setSigaaOpen(false)}
+        onConfirm={handleImportConfirm}
+      />
     </>
   );
 }
